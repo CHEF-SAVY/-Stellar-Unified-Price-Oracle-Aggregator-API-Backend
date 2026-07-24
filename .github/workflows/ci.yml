@@ -10,6 +10,19 @@ env:
   NODE_VERSION: '20'
 
 jobs:
+  cost-optimization:
+    name: Cost model and report
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Verify cost analysis report
+        run: npm run cost:check
+
   aggregator:
     name: Aggregator service build
     runs-on: ubuntu-latest

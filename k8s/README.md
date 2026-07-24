@@ -33,3 +33,17 @@ kubectl apply -k k8s/istio
 ```
 
 See [k8s/istio/README.md](istio/README.md).
+
+## Production cost controls
+
+The production overlay applies right-sized resource requests, cost-allocation
+labels, a namespace quota, and monthly run-rate alerts. Generate and verify the
+cost report with:
+
+```bash
+npm run cost:analyze
+npm run cost:check
+```
+
+See [the cost optimization report](../docs/COST_OPTIMIZATION.md) for assumptions,
+savings by service and team, budget thresholds, and rollout guardrails.
