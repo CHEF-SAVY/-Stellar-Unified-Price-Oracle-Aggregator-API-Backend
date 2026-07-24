@@ -34,6 +34,29 @@ kubectl apply -k k8s/istio
 
 See [k8s/istio/README.md](istio/README.md).
 
+## Sandbox environment
+
+The sandbox overlay is isolated in the `stellar-oracle-sandbox` namespace and
+does not configure a production database. It serves deterministic fixtures for
+XLM, USDC, BTC, ETH, and USDT. Apply it with a local reset token:
+
+```bash
+kubectl apply -k k8s/overlays/sandbox
+kubectl create secret generic sandbox-credentials \
+  -n stellar-oracle-sandbox \
+  --from-literal=reset-token='<local-token>'
+curl https://sandbox.example/api/v1/sandbox/info
+curl -X POST https://sandbox.example/api/v1/sandbox/reset \
+  -H 'x-sandbox-reset-token: <local-token>'
+curl -X POST https://sandbox.example/api/v1/sandbox/replay \
+  -H 'content-type: application/json' \
+  -d '{"path":"/prices/XLM"}'
+```
+
+Sandbox data is synthetic, read-only through replay, and resettable on demand.
+It has a separate namespace, endpoint, credentials, and no production database
+connection. Do not use sandbox prices for financial decisions.
+
 ## Production cost controls
 
 The production overlay applies right-sized resource requests, cost-allocation

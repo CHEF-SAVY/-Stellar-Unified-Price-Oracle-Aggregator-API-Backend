@@ -5,6 +5,10 @@ import { decryptSecret } from './services/crypto';
 dotenv.config({ path: path.resolve(__dirname, '../../.env') });
 
 export const config = {
+  sandbox: {
+    enabled: process.env.SANDBOX_ENABLED === 'true',
+    resetToken: process.env.SANDBOX_RESET_TOKEN || '',
+  },
   port: parseInt(process.env.API_PORT || '3000', 10),
   wsPort: parseInt(process.env.WS_PORT || '3001', 10),
   aggregatorUrl: process.env.AGGREGATOR_URL || 'http://localhost:4000',
