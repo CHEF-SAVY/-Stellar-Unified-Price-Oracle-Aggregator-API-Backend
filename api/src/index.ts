@@ -31,6 +31,8 @@ import { setDatabase } from './services/price-store';
 import { initializeTracing } from './services/tracing';
 import adminRoutes from './routes/admin';
 import statusRoutes from './routes/status';
+import featureFlagRoutes from './routes/featureFlags';
+import eventRoutes from './routes/events';
 import { uptimeTracker } from './services/uptime-tracker';
 import { AppError } from './errors/app-error';
 import { ErrorCode } from './errors/catalog';
@@ -154,6 +156,12 @@ app.use('/api/v2/health', optionalAuthMiddleware);
 app.use('/api/v1', v1DeprecationHeaders, v1Routes);
 app.use('/api/v1/admin', adminRoutes);
 app.use('/api/v2', v2Headers, v2Routes);
+
+// Feature flags — #117
+app.use('/api/feature-flags', featureFlagRoutes);
+
+// Event store read-side — #118
+app.use('/api/events', eventRoutes);
 
 // Documentation and metrics
 app.use('/api/v1/docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
