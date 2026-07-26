@@ -155,6 +155,12 @@ app.use('/api/v1', v1DeprecationHeaders, v1Routes);
 app.use('/api/v1/admin', adminRoutes);
 app.use('/api/v2', v2Headers, v2Routes);
 
+// Feature flags — #117
+app.use('/api/feature-flags', featureFlagRoutes);
+
+// Event store read-side — #118
+app.use('/api/events', eventRoutes);
+
 // Documentation and metrics
 app.use('/api/v1/docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 app.get('/metrics', metricsHandler);
