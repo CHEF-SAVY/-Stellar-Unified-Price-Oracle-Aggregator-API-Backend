@@ -1,7 +1,7 @@
 import { Router, Request, Response } from 'express';
-import { config } from '../config';
-import { HybridCache } from '../services/cache';
-import { readAssetPrices, readPriceHistory, resetSandboxData, SANDBOX_ASSETS } from '../services/price-store';
+import { config } from '../infrastructure/config';
+import { HybridCache } from '../price-serving/cache';
+import { readAssetPrices, readPriceHistory, resetSandboxData, SANDBOX_ASSETS } from '../price-serving/price-store';
 
 const router = Router();
 let sandboxCache: HybridCache<unknown> | undefined;
