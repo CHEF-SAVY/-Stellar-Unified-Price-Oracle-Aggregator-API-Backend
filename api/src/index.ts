@@ -31,6 +31,7 @@ import { setDatabase } from './price-serving/price-store';
 import { initializeTracing } from './observability/tracing';
 import adminRoutes from './governance/admin';
 import statusRoutes from './observability/status';
+import sandboxRoutes, { initializeSandboxCache } from './routes/sandbox';
 import { uptimeTracker } from './observability/uptime-tracker';
 import { AppError } from './infrastructure/app-error';
 import { ErrorCode } from './infrastructure/catalog';
@@ -103,6 +104,7 @@ const cache = new HybridCache<any>(logger, {
 
 initializeCache(cache);
 initializeCacheV2(cache);
+initializeSandboxCache(cache);
 
 app.use(helmet());
 app.use(cors(corsManager.getCorsOptions()));
@@ -152,6 +154,7 @@ app.use('/api/v2/health', optionalAuthMiddleware);
 
 // Routes — v1 tagged as deprecated, v2 is current
 app.use('/api/v1', v1DeprecationHeaders, v1Routes);
+app.use('/api/v1/sandbox', sandboxRoutes);
 app.use('/api/v1/admin', adminRoutes);
 app.use('/api/v2', v2Headers, v2Routes);
 

@@ -5,7 +5,25 @@ import { decrypt, isEncrypted } from '../governance/crypto';
 import { decodeCursor } from './pagination';
 
 const DATA_DIR = path.resolve(__dirname, '../../data');
+const HISTORY_FILE = (asset: string) => path.join(DATA_DIR, `history-${asset.toLowerCase()}.json`);
 let db: DatabaseClient | null = null;
+
+export const SANDBOX_ASSETS = ['XLM', 'USDC', 'BTC', 'ETH', 'USDT'] as const;
+
+/** Replace file-backed data with deterministic, recent fixtures for sandbox resets. */
+export function resetSandboxData(now = Math.floor(Date.now() / 1000)): void {
+  fs.mkdirSync(DATA_DIR, { recursive: true });
+  const prices: Record<string, string> = {
+    XLM: '0.1200000', USDC: '1.0000000', BTC: '68000.0000000',
+    ETH: '3500.0000000', USDT: '1.0000000',
+  };
+  for (const asset of SANDBOX_ASSETS) {
+    const history = Array.from({ length: 10 }, (_, index) => ({
+      price: prices[asset], decimals: 7, source: 'sandbox-fixture', timestamp: now - (9 - index) * 60,
+    }));
+    fs.writeFileSync(HISTORY_FILE(asset), JSON.stringify(history, null, 2));
+  }
+}
 
 /** Read and parse a history file, transparently decrypting if encrypted at rest. */
 function readHistoryFile(filePath: string): any[] {
