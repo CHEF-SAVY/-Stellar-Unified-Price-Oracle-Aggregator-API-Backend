@@ -158,6 +158,65 @@ router.get('/prices/:asset', async (req: Request, res: Response) => {
   res.json({ meta: { version: '2', success: true }, data: enriched });
 });
 
+router.get('/prices/batch', async (req: Request, res: Response) => {
+  const assetsParam = req.query.assets as string;
+  if (!assetsParam) {
+    return res.status(400).json({
+      meta: { version: '2', success: false },
+      error: { code: 'INVALID_INPUT', message: 'Missing required "assets" query parameter (comma-separated)' },
+    });
+  }
+
+  const assets = assetsParam.split(',').map((a) => a.trim()).filter((a) => a.length > 0);
+  const body = BatchQuerySchema.safeParse({ assets });
+  if (!body.success) {
+    return res.status(400).json({ meta: { version: '2', success: false }, error: formatValidationResponse(body.error).error });
+  }
+
+  const { assets: validatedAssets } = body.data;
+  const upperAssets = validatedAssets.map((a) => a.toUpperCase());
+  const cacheKey = `v2:batch:${upperAssets.sort().join(',')}`;
+
+  const cached = await pricesCache.get(cacheKey);
+  if (cached) {
+    cacheHitTotal.inc();
+    return res.json({ meta: { version: '2', success: true, cached: true }, data: cached });
+  }
+  cacheMissTotal.inc();
+
+  const allPrices = await readAssetPrices();
+  const priceMap = new Map(allPrices.map((p) => [p.asset, p]));
+
+  const results: Array<{ asset: string; price?: any; error?: string }> = [];
+  for (const asset of upperAssets) {
+    const price = priceMap.get(asset);
+    if (price) {
+      priceQueriesTotal.inc({ asset });
+      lastPriceTimestamp.set({ asset }, price.timestamp);
+      results.push({
+        asset,
+        price: {
+          ...price,
+          sourceCount: Array.isArray(price.sources) ? price.sources.length : 1,
+          confidence: Array.isArray(price.sources) && price.sources.length >= 3 ? 'high' : price.sources?.length >= 2 ? 'medium' : 'low',
+        },
+      });
+    } else {
+      results.push({ asset, error: 'NOT_FOUND' });
+    }
+  }
+
+  const response = {
+    timestamp: Math.floor(Date.now() / 1000),
+    requested: upperAssets.length,
+    found: results.filter((r) => r.price).length,
+    results,
+  };
+
+  await pricesCache.set(cacheKey, response, 'prices');
+  res.json({ meta: { version: '2', success: true }, data: response });
+});
+
 router.post('/prices/batch', async (req: Request, res: Response) => {
   const body = BatchQuerySchema.safeParse(req.body);
   if (!body.success) {
