@@ -32,6 +32,8 @@ import { initializeTracing } from './observability/tracing';
 import adminRoutes from './governance/admin';
 import statusRoutes from './observability/status';
 import sandboxRoutes, { initializeSandboxCache } from './routes/sandbox';
+import featureFlagRoutes from './routes/featureFlags';
+import eventRoutes from './routes/events';
 import { uptimeTracker } from './observability/uptime-tracker';
 import { AppError } from './infrastructure/app-error';
 import { ErrorCode } from './infrastructure/catalog';
