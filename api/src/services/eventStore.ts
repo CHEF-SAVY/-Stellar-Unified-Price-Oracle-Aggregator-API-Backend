@@ -23,7 +23,7 @@
  */
 
 import { createHash, randomUUID } from 'crypto';
-import { logger as defaultLogger } from '../middleware/logger';
+import { logger as defaultLogger } from '../observability/logger';
 
 // ---------------------------------------------------------------------------
 // Domain event types

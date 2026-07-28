@@ -19,7 +19,7 @@
  */
 
 import { createHash } from 'crypto';
-import { logger as defaultLogger } from '../middleware/logger';
+import { logger as defaultLogger } from '../observability/logger';
 
 // ---------------------------------------------------------------------------
 // Types
