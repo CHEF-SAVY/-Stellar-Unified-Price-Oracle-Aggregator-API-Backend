@@ -35,6 +35,7 @@ router.get('/', (_req: Request, res: Response) => {
       prices: '/api/v2/prices',
       price: '/api/v2/prices/:asset',
       batchPrices: 'POST /api/v2/prices/batch',
+      assets: '/api/v2/assets',
       history: '/api/v2/history/:asset',
       sources: '/api/v2/sources',
       health: '/api/v2/health',
@@ -44,8 +45,43 @@ router.get('/', (_req: Request, res: Response) => {
       'Price objects include `confidence` and `sourceCount` fields',
       'Pagination supported on /prices and /history via `cursor`',
       'Batch endpoint accepts up to 50 assets',
+      'Asset metadata endpoint with filtering by status',
     ],
   });
+});
+
+router.get('/assets', async (req: Request, res: Response) => {
+  const status = (req.query.status as string)?.toLowerCase();
+  const cacheKey = `v2:assets:${status || 'all'}`;
+  const cached = await pricesCache.get(cacheKey);
+  if (cached) {
+    cacheHitTotal.inc();
+    return res.json({ meta: { version: '2', success: true, cached: true }, data: cached });
+  }
+  cacheMissTotal.inc();
+
+  const prices = await readAssetPrices();
+  const assets = prices.map((p) => ({
+    symbol: p.asset,
+    decimals: p.decimals || 8,
+    sources: Array.isArray(p.sources) ? p.sources : [p.sources],
+    sourceCount: Array.isArray(p.sources) ? p.sources.length : 1,
+    status: 'active',
+    lastUpdate: p.timestamp,
+    confidence: Array.isArray(p.sources) && p.sources.length >= 3 ? 'high' : p.sources?.length >= 2 ? 'medium' : 'low',
+  }));
+
+  const filtered = status === 'inactive' ? [] : assets;
+
+  const response = {
+    timestamp: Math.floor(Date.now() / 1000),
+    count: filtered.length,
+    status: status || 'all',
+    assets: filtered,
+  };
+
+  await pricesCache.set(cacheKey, response, 'sources');
+  res.json({ meta: { version: '2', success: true }, data: response });
 });
 
 // v2 prices — enhanced envelope with confidence + source count
