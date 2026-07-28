@@ -74,6 +74,13 @@ export const config = {
     retentionDays: parseInt(process.env.HISTORY_RETENTION_DAYS || '0', 10),
   },
 
+  // Caps applied to file-based history on every append (issue #214), so the
+  // JSON files under data/ cannot grow without bound. Set either to 0 to disable.
+  history: {
+    maxEntries: parseInt(process.env.HISTORY_MAX_ENTRIES || '10000', 10),
+    retentionSeconds: parseInt(process.env.HISTORY_RETENTION_SECONDS || '604800', 10),
+  },
+
   security: {
     // SSRF protection for outbound oracle-source HTTP requests (issue #39).
     ssrf: {

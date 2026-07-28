@@ -31,6 +31,22 @@ function writeHistoryFile(filePath: string, history: any[]): void {
   fs.writeFileSync(filePath, payload);
 }
 
+/**
+ * Drop entries older than the retention window, then keep only the newest
+ * maxEntries (issue #214). Entry timestamps are Unix seconds.
+ */
+function pruneHistory(history: any[]): any[] {
+  const { maxEntries, retentionSeconds } = config.history;
+  let pruned = history;
+
+  if (retentionSeconds > 0) {
+    const cutoff = Math.floor(Date.now() / 1000) - retentionSeconds;
+    pruned = pruned.filter((h: any) => h.timestamp >= cutoff);
+  }
+
+  return maxEntries > 0 && pruned.length > maxEntries ? pruned.slice(-maxEntries) : pruned;
+}
+
 export function appendHistoricalPrice(
   asset: string,
   price: string,
@@ -45,7 +61,7 @@ export function appendHistoricalPrice(
     history = readHistoryFile(filePath);
   } catch { /* ignore corrupt data */ }
   history.push({ price, decimals, source, timestamp });
-  writeHistoryFile(filePath, history);
+  writeHistoryFile(filePath, pruneHistory(history));
 }
 
 export function getHistoricalPrices(
