@@ -12,8 +12,9 @@ export const TIER_RATE_LIMITS: Record<KeyTier, number> = {
 };
 
 export interface ApiKeyMetadata {
-  key: string;
   keyHash: string;
+  /** Non-secret leading segment of the key, kept for display in admin listings */
+  keyPrefix: string;
   createdAt: number;
   lastUsed: number | null;
   requestCount: number;
@@ -26,11 +27,17 @@ export interface ApiKeyMetadata {
   rotationExpiresAt?: number;
 }
 
+/** Metadata plus the plaintext key, returned only when a key is created or rotated. */
+export interface GeneratedApiKey extends ApiKeyMetadata {
+  key: string;
+}
+
 export interface ApiKeyStore {
   [keyHash: string]: ApiKeyMetadata;
 }
 
 export class ApiKeyManager {
+  /** Keyed by SHA-256 hash of the API key — plaintext keys are never retained. */
   private keys: Map<string, ApiKeyMetadata> = new Map();
   private lastMinuteRequests: Map<string, number[]> = new Map();
 
@@ -38,12 +45,12 @@ export class ApiKeyManager {
     this.loadKeysFromEnv();
   }
 
-  generateKey(rateLimitPerMin: number = TIER_RATE_LIMITS.free, description?: string, tier: KeyTier = 'free', role: Role = 'viewer'): ApiKeyMetadata {
+  generateKey(rateLimitPerMin: number = TIER_RATE_LIMITS.free, description?: string, tier: KeyTier = 'free', role: Role = 'viewer'): GeneratedApiKey {
     const key = this.createKey(tier);
     const keyHash = this.hashKey(key);
     const metadata: ApiKeyMetadata = {
-      key,
       keyHash,
+      keyPrefix: key.substring(0, 12),
       createdAt: Date.now(),
       lastUsed: null,
       requestCount: 0,
@@ -54,14 +61,14 @@ export class ApiKeyManager {
       description,
     };
 
-    this.keys.set(key, metadata);
-    logger.info(`Generated new API key: ${key.substring(0, 8)}... tier=${tier} role=${role} limit=${rateLimitPerMin}/min`);
+    this.keys.set(keyHash, metadata);
+    logger.info(`Generated new API key: ${metadata.keyPrefix}... tier=${tier} role=${role} limit=${rateLimitPerMin}/min`);
 
-    return metadata;
+    return { ...metadata, key };
   }
 
   validateKey(key: string): { valid: boolean; metadata?: ApiKeyMetadata; error?: string } {
-    const metadata = this.keys.get(key);
+    const metadata = this.keys.get(this.hashKey(key));
 
     if (!metadata) {
       return { valid: false, error: 'Invalid API key' };
@@ -75,12 +82,13 @@ export class ApiKeyManager {
   }
 
   isAdminKey(key: string): boolean {
-    const metadata = this.keys.get(key);
+    const metadata = this.keys.get(this.hashKey(key));
     return !!metadata && metadata.role === 'admin';
   }
 
   checkRateLimit(key: string): { allowed: boolean; remaining: number; resetTime: number; retryAfter?: number } {
-    const metadata = this.keys.get(key);
+    const keyHash = this.hashKey(key);
+    const metadata = this.keys.get(keyHash);
     if (!metadata) {
       return { allowed: false, remaining: 0, resetTime: 0 };
     }
@@ -89,7 +97,7 @@ export class ApiKeyManager {
     const windowMs = 60000;
     const oneMinuteAgo = now - windowMs;
 
-    let requests = this.lastMinuteRequests.get(key) || [];
+    let requests = this.lastMinuteRequests.get(keyHash) || [];
     requests = requests.filter((ts) => ts > oneMinuteAgo);
 
     if (requests.length >= metadata.rateLimitPerMin) {
@@ -101,7 +109,7 @@ export class ApiKeyManager {
     }
 
     requests.push(now);
-    this.lastMinuteRequests.set(key, requests);
+    this.lastMinuteRequests.set(keyHash, requests);
 
     metadata.lastUsed = now;
     metadata.requestCount++;
@@ -110,58 +118,58 @@ export class ApiKeyManager {
     return { allowed: true, remaining, resetTime: now + windowMs };
   }
 
-  rotateKey(oldKey: string): ApiKeyMetadata | null {
-    const metadata = this.keys.get(oldKey);
+  rotateKey(oldKeyHash: string): GeneratedApiKey | null {
+    const metadata = this.keys.get(oldKeyHash);
     if (!metadata) return null;
 
     const newKey = this.createKey(metadata.tier);
     const newHash = this.hashKey(newKey);
     const newMetadata: ApiKeyMetadata = {
       ...metadata,
-      key: newKey,
       keyHash: newHash,
+      keyPrefix: newKey.substring(0, 12),
       createdAt: Date.now(),
       lastUsed: null,
       requestCount: 0,
     };
 
-    this.keys.delete(oldKey);
-    this.lastMinuteRequests.delete(oldKey);
-    this.keys.set(newKey, newMetadata);
-    logger.info(`Rotated API key: old=${oldKey.substring(0, 8)}... new=${newKey.substring(0, 8)}...`);
+    this.keys.delete(oldKeyHash);
+    this.lastMinuteRequests.delete(oldKeyHash);
+    this.keys.set(newHash, newMetadata);
+    logger.info(`Rotated API key: old=${metadata.keyPrefix}... new=${newMetadata.keyPrefix}...`);
 
-    return newMetadata;
+    return { ...newMetadata, key: newKey };
   }
 
-  revokeKey(key: string): boolean {
-    const metadata = this.keys.get(key);
+  revokeKey(keyHash: string): boolean {
+    const metadata = this.keys.get(keyHash);
     if (!metadata) return false;
 
     metadata.isActive = false;
-    logger.info(`Revoked API key: ${key.substring(0, 8)}...`);
+    logger.info(`Revoked API key: ${metadata.keyPrefix}...`);
     return true;
   }
 
-  deactivateKey(key: string): boolean {
-    return this.revokeKey(key);
+  deactivateKey(keyHash: string): boolean {
+    return this.revokeKey(keyHash);
   }
 
-  reactivateKey(key: string): boolean {
-    const metadata = this.keys.get(key);
+  reactivateKey(keyHash: string): boolean {
+    const metadata = this.keys.get(keyHash);
     if (!metadata) return false;
 
     metadata.isActive = true;
-    logger.info(`Reactivated API key: ${key.substring(0, 8)}...`);
+    logger.info(`Reactivated API key: ${metadata.keyPrefix}...`);
     return true;
   }
 
-  getKeyMetadata(key: string): ApiKeyMetadata | null {
-    return this.keys.get(key) || null;
+  getKeyMetadata(keyHash: string): ApiKeyMetadata | null {
+    return this.keys.get(keyHash) || null;
   }
 
   getAllKeys(): Array<{ keyPrefix: string; keyHash: string; createdAt: number; lastUsed: number | null; requestCount: number; isActive: boolean; rateLimitPerMin: number; tier: KeyTier; role: Role; description?: string }> {
     return Array.from(this.keys.values()).map((m) => ({
-      keyPrefix: m.key.substring(0, 12) + '...',
+      keyPrefix: m.keyPrefix + '...',
       keyHash: m.keyHash,
       createdAt: m.createdAt,
       lastUsed: m.lastUsed,
@@ -175,33 +183,34 @@ export class ApiKeyManager {
   }
 
   findByHash(hash: string): ApiKeyMetadata | null {
-    return Array.from(this.keys.values()).find((m) => m.keyHash === hash) || null;
+    return this.keys.get(hash) || null;
   }
 
-  updateRateLimit(key: string, newLimit: number): boolean {
-    const metadata = this.keys.get(key);
+  updateRateLimit(keyHash: string, newLimit: number): boolean {
+    const metadata = this.keys.get(keyHash);
     if (!metadata) return false;
 
     metadata.rateLimitPerMin = newLimit;
-    logger.info(`Updated rate limit for ${key.substring(0, 8)}... to ${newLimit}/min`);
+    logger.info(`Updated rate limit for ${metadata.keyPrefix}... to ${newLimit}/min`);
     return true;
   }
 
-  updateTier(key: string, tier: KeyTier): boolean {
-    const metadata = this.keys.get(key);
+  updateTier(keyHash: string, tier: KeyTier): boolean {
+    const metadata = this.keys.get(keyHash);
     if (!metadata) return false;
 
     metadata.tier = tier;
     metadata.rateLimitPerMin = TIER_RATE_LIMITS[tier];
-    logger.info(`Updated tier for ${key.substring(0, 8)}... to ${tier} (${TIER_RATE_LIMITS[tier]}/min)`);
+    logger.info(`Updated tier for ${metadata.keyPrefix}... to ${tier} (${TIER_RATE_LIMITS[tier]}/min)`);
     return true;
   }
 
-  deleteKey(key: string): boolean {
-    const result = this.keys.delete(key);
+  deleteKey(keyHash: string): boolean {
+    const metadata = this.keys.get(keyHash);
+    const result = this.keys.delete(keyHash);
     if (result) {
-      this.lastMinuteRequests.delete(key);
-      logger.info(`Deleted API key: ${key.substring(0, 8)}...`);
+      this.lastMinuteRequests.delete(keyHash);
+      logger.info(`Deleted API key: ${metadata!.keyPrefix}...`);
     }
     return result;
   }
@@ -237,9 +246,10 @@ export class ApiKeyManager {
           const tier = (parts[3] as KeyTier) || 'free';
           const role = (parts[4] as Role) || 'viewer';
 
+          const keyHash = this.hashKey(key);
           const metadata: ApiKeyMetadata = {
-            key,
-            keyHash: this.hashKey(key),
+            keyHash,
+            keyPrefix: key.substring(0, 12),
             createdAt: Date.now(),
             lastUsed: null,
             requestCount: 0,
@@ -250,7 +260,7 @@ export class ApiKeyManager {
             description,
           };
 
-          this.keys.set(key, metadata);
+          this.keys.set(keyHash, metadata);
         }
       }
 
