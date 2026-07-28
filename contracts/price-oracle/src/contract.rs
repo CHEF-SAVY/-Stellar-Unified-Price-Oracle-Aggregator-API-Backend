@@ -3,7 +3,7 @@ use soroban_sdk::{contract, contractimpl, Address, Bytes, Env, String, Vec};
 use crate::errors::OracleError;
 use crate::merkle;
 use crate::storage;
-use crate::types::{AssetPrice, MultiSigConfig, Proposal, ProposalAction, PriceDataPoint, SourceReputation};
+use crate::types::{AssetPrice, BatchPriceEntry, MerkleProof, MultiSigConfig, Proposal, ProposalAction, PriceDataPoint, SourceReputation};
 
 // Basis points threshold below which a submission is counted as accurate for reputation.
 const REPUTATION_ACCURACY_THRESHOLD_BPS: u128 = 2000; // 20%
@@ -68,25 +68,26 @@ impl PriceOracleContract {
         Ok(data_point)
     }
 
-        // Cap history at MAX_HISTORY_LEN to keep persistent-storage entry size
-        // bounded.  Evict the oldest entry when the cap is reached rather than
-        // reading, appending, and writing the full vector unconditionally.
-        let mut history = storage::get_price_history(&env, &asset);
-        if history.len() >= MAX_HISTORY_LEN {
-            // Drop the oldest entry (index 0) by rebuilding from index 1.
-            // Soroban Vec has no remove(), so we shift manually.
-            let mut trimmed: Vec<PriceDataPoint> = Vec::new(&env);
-            for i in 1..history.len() {
-                if let Some(dp) = history.get(i) {
-                    trimmed.push_back(dp);
-                }
-            }
-            trimmed.push_back(data_point.clone());
-            storage::set_price_history(&env, &asset, &trimmed);
-        } else {
-            history.push_back(data_point.clone());
-            storage::set_price_history(&env, &asset, &history);
-        }
+    // -------------------------------------------------------------------------
+    // Issue #75 — Merkle batch submission
+    // -------------------------------------------------------------------------
+
+    /// Commit a Merkle root covering a batch of price entries.
+    ///
+    /// The authorized source submits one transaction with the root hash of an
+    /// ordered batch.  Individual entries are applied later via
+    /// `apply_batch_entry` using inclusion proofs — one cheap tx per price
+    /// instead of one full auth+storage tx per price.
+    ///
+    /// `nonce` must equal the current BatchNonce (prevents replay attacks).
+    /// Returns the new nonce after this batch.
+    pub fn submit_batch(
+        env: Env,
+        source: Address,
+        nonce: u64,
+        root: Bytes,
+    ) -> Result<u64, OracleError> {
+        source.require_auth();
 
         if !storage::is_authorized_source(&env, &source) {
             return Err(OracleError::UnauthorizedSource);
@@ -379,6 +380,30 @@ impl PriceOracleContract {
         storage::verify_admin(&env, &admin)?;
         storage::set_trusted_asset(&env, &asset, trusted);
         Ok(())
+    }
+}
+
+// -------------------------------------------------------------------------
+// History helper
+// Appends a data point to an asset's price history, capping it at
+// storage::MAX_HISTORY_LEN to keep the persistent-storage entry size bounded.
+// -------------------------------------------------------------------------
+fn append_history(env: &Env, asset: &String, data_point: PriceDataPoint) {
+    let mut history = storage::get_price_history(env, asset);
+    if history.len() >= storage::MAX_HISTORY_LEN {
+        // Drop the oldest entry (index 0) by rebuilding from index 1.
+        // Soroban Vec has no remove(), so we shift manually.
+        let mut trimmed: Vec<PriceDataPoint> = Vec::new(env);
+        for i in 1..history.len() {
+            if let Some(dp) = history.get(i) {
+                trimmed.push_back(dp);
+            }
+        }
+        trimmed.push_back(data_point);
+        storage::set_price_history(env, asset, &trimmed);
+    } else {
+        history.push_back(data_point);
+        storage::set_price_history(env, asset, &history);
     }
 }
 

@@ -94,8 +94,7 @@ router.get('/keys/:keyHash', (req: Request, res: Response) => {
       error: { code: 'KEY_NOT_FOUND', message: 'API key not found' },
     });
   }
-  const { key: _key, ...safeInfo } = keyInfo;
-  res.json({ success: true, data: safeInfo });
+  res.json({ success: true, data: keyInfo });
 });
 
 router.post('/keys/:keyHash/rotate', (req: Request, res: Response) => {
@@ -107,7 +106,7 @@ router.post('/keys/:keyHash/rotate', (req: Request, res: Response) => {
     });
   }
 
-  const rotated = apiKeyManager.rotateKey(existing.key);
+  const rotated = apiKeyManager.rotateKey(req.params.keyHash);
   if (!rotated) {
     return res.status(500).json({
       success: false,
@@ -148,7 +147,7 @@ router.put('/keys/:keyHash/tier', (req: Request, res: Response) => {
     });
   }
 
-  apiKeyManager.updateTier(existing.key, tier as KeyTier);
+  apiKeyManager.updateTier(req.params.keyHash, tier as KeyTier);
   res.json({
     success: true,
     data: { keyHash: req.params.keyHash, tier, rateLimitPerMin: TIER_RATE_LIMITS[tier as KeyTier] },
@@ -173,7 +172,7 @@ router.put('/keys/:keyHash/rate-limit', (req: Request, res: Response) => {
     });
   }
 
-  apiKeyManager.updateRateLimit(existing.key, rateLimitPerMin);
+  apiKeyManager.updateRateLimit(req.params.keyHash, rateLimitPerMin);
   res.json({ success: true, data: { keyHash: req.params.keyHash, rateLimitPerMin } });
 });
 
@@ -186,7 +185,7 @@ router.post('/keys/:keyHash/revoke', (req: Request, res: Response) => {
     });
   }
 
-  apiKeyManager.revokeKey(existing.key);
+  apiKeyManager.revokeKey(req.params.keyHash);
   logger.info(`Admin ${req.apiKey?.substring(0, 8)}... revoked key ${req.params.keyHash}`);
 
   // Publish ApiKeyRevokedEvent
@@ -210,7 +209,7 @@ router.post('/keys/:keyHash/reactivate', (req: Request, res: Response) => {
     });
   }
 
-  apiKeyManager.reactivateKey(existing.key);
+  apiKeyManager.reactivateKey(req.params.keyHash);
   logger.info(`Admin ${req.apiKey?.substring(0, 8)}... reactivated key ${req.params.keyHash}`);
   res.json({ success: true, data: { keyHash: req.params.keyHash, action: 'reactivated' } });
 });
@@ -224,7 +223,7 @@ router.delete('/keys/:keyHash', (req: Request, res: Response) => {
     });
   }
 
-  apiKeyManager.deleteKey(existing.key);
+  apiKeyManager.deleteKey(req.params.keyHash);
   logger.info(`Admin ${req.apiKey?.substring(0, 8)}... deleted key ${req.params.keyHash}`);
   res.json({ success: true, data: { keyHash: req.params.keyHash, action: 'deleted' } });
 });
