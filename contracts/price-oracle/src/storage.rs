@@ -220,15 +220,60 @@ pub fn get_multisig_config(env: &Env) -> Option<MultiSigConfig> {
     env.storage().instance().get(&DataKey::MultiSigConfig)
 }
 
-pub fn get_proposal_count(env: &Env) -> u32 {
+pub fn get_msig_proposal_count(env: &Env) -> u32 {
     env.storage()
         .instance()
-        .get(&DataKey::ProposalCount)
+        .get(&DataKey::MultiSigProposalCount)
         .unwrap_or(0)
 }
 
-pub fn set_proposal_count(env: &Env, count: u32) {
-    env.storage().instance().set(&DataKey::ProposalCount, &count);
+pub fn set_msig_proposal_count(env: &Env, count: u32) {
+    env.storage().instance().set(&DataKey::MultiSigProposalCount, &count);
+}
+
+pub fn set_msig_proposal(env: &Env, proposal: &MultiSigProposal) {
+    env.storage()
+        .instance()
+        .set(&DataKey::MultiSigProposal(proposal.id), proposal);
+}
+
+pub fn get_msig_proposal(env: &Env, id: u32) -> Option<MultiSigProposal> {
+    env.storage().instance().get(&DataKey::MultiSigProposal(id))
+}
+
+// ── Governance (token-based voting) ──────────────────────────────────────────
+
+pub fn set_gov_config(env: &Env, config: &GovernanceConfig) {
+    env.storage().instance().set(&DataKey::GovernanceConfig, config);
+}
+
+pub fn get_gov_config(env: &Env) -> Option<GovernanceConfig> {
+    env.storage().instance().get(&DataKey::GovernanceConfig)
+}
+
+pub fn increment_proposal_count(env: &Env) -> u32 {
+    let count = env.storage()
+        .instance()
+        .get(&DataKey::GovernanceProposalCount)
+        .unwrap_or(0);
+    let next = count + 1;
+    env.storage()
+        .instance()
+        .set(&DataKey::GovernanceProposalCount, &next);
+    next
+}
+
+pub fn get_proposal_count(env: &Env) -> u32 {
+    env.storage()
+        .instance()
+        .get(&DataKey::GovernanceProposalCount)
+        .unwrap_or(0)
+}
+
+pub fn set_gov_proposal(env: &Env, proposal: &GovernanceProposal) {
+    env.storage()
+        .instance()
+        .set(&DataKey::GovernanceProposal(proposal.id), proposal);
 }
 
 pub fn set_multisig_proposal(env: &Env, proposal: &MultiSigProposal) {

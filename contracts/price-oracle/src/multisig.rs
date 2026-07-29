@@ -40,7 +40,7 @@ impl MultiSigAdminContract {
         }
         let config = MultiSigConfig { signers, threshold };
         storage::set_multisig_config(&env, &config);
-        storage::set_proposal_count(&env, 0);
+        storage::set_msig_proposal_count(&env, 0);
         Ok(())
     }
 
@@ -63,7 +63,7 @@ impl MultiSigAdminContract {
             return Err(OracleError::NotASigner);
         }
 
-        let id = storage::get_proposal_count(&env);
+        let id = storage::get_msig_proposal_count(&env);
         let mut approvals: Vec<Address> = Vec::new(&env);
         approvals.push_back(proposer.clone());
 
@@ -176,7 +176,7 @@ impl MultiSigAdminContract {
     }
 
     pub fn get_proposal_count(env: Env) -> u32 {
-        storage::get_proposal_count(&env)
+        storage::get_msig_proposal_count(&env)
     }
 
     pub fn get_source_reputation(env: Env, source: Address) -> Option<SourceReputation> {

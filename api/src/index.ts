@@ -38,6 +38,8 @@ import adminRoutes from './governance/admin';
 import sandboxRoutes, { initializeSandboxCache } from './routes/sandbox';
 import featureFlagRoutes from './routes/featureFlags';
 import eventRoutes from './routes/events';
+import governanceRoutes from './governance/proposal-routes';
+import platformRoutes from './platform/routes';
 import { uptimeTracker } from './observability/uptime-tracker';
 import { AppError } from './infrastructure/app-error';
 import { ErrorCode } from './infrastructure/catalog';
@@ -191,6 +193,7 @@ app.use('/api/v1', v1DeprecationHeaders, v1Routes);
 app.use('/api/v1', v1DeprecationHeaders, platformRoutes);
 app.use('/api/v1/sandbox', sandboxRoutes);
 app.use('/api/v1/admin', adminRoutes);
+app.use('/api/v1/governance', governanceRoutes);
 app.use('/api/v2', v2Headers, v2Routes);
 
 // Feature flags — #117
@@ -202,6 +205,9 @@ app.use('/api/events', eventRoutes);
 // Documentation and metrics
 app.use('/api/v1/docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 app.get('/metrics', metricsHandler);
+
+// Governance dashboard
+app.use('/portal/governance', express.static(path.join(__dirname, '..', 'public', 'governance')));
 
 // Developer portal: API explorer, key management, usage/billing UI
 app.use('/portal', express.static(path.join(__dirname, '..', 'public', 'portal')));

@@ -16,6 +16,7 @@ import { conditionalCache } from './conditional-cache';
 import { createLineageForPrice } from '../platform/lineage';
 import { eventBus } from '../domain-events';
 import complianceRoutes from '../governance/compliance';
+import { createLineageForPrice } from '../platform/lineage';
 
 const router = Router();
 let pricesCache: HybridCache<any>;

@@ -211,7 +211,7 @@ impl PriceOracleContract {
             return Err(OracleError::NotASigner);
         }
 
-        let id = storage::get_proposal_count(&env);
+        let id = storage::get_msig_proposal_count(&env);
         let mut approvals: Vec<Address> = Vec::new(&env);
         approvals.push_back(proposer.clone());
 

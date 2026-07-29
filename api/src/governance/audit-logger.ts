@@ -20,7 +20,16 @@ export type AuditEvent =
   | 'consistency.check'
   | 'backup.run'
   | 'backup.test-restore'
-  | 'backup.restore';
+  | 'backup.restore'
+  | 'governance.proposal_created'
+  | 'governance.vote_cast'
+  | 'governance.proposal_queued'
+  | 'governance.proposal_executed'
+  | 'governance.proposal_cancelled'
+  | 'governance.emergency_execute'
+  | 'multisig.proposal_created'
+  | 'multisig.proposal_approved'
+  | 'multisig.proposal_executed';
 
 interface AuditEntry {
   event: AuditEvent;

@@ -43,13 +43,13 @@ fn resolve_proposal(env: &Env, proposal: &mut GovernanceProposal, config: &Gover
 
 fn apply_action(env: &Env, action: &ProposalAction) {
     match action {
-        ProposalAction::SetAdmin(new_admin) => {
+        ProposalAction::SetAdmin(new_admin) | ProposalAction::TransferAdmin(new_admin) => {
             storage::set_admin(env, new_admin);
         }
-        ProposalAction::AddOracleSource(source, name) => {
+        ProposalAction::AddOracleSource(source, name) | ProposalAction::AddSource(source, name) => {
             storage::add_source(env, source, name);
         }
-        ProposalAction::RemoveOracleSource(source) => {
+        ProposalAction::RemoveOracleSource(source) | ProposalAction::RemoveSource(source) => {
             storage::remove_source(env, source);
         }
         ProposalAction::SetTrustedAsset(asset, trusted) => {
