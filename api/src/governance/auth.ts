@@ -4,6 +4,7 @@ import { apiKeyManager } from './api-key-manager';
 import { logger } from '../observability/logger';
 import { auditLog } from './audit-logger';
 import type { Role } from './rbac';
+import { decryptSecret } from './crypto';
 
 declare global {
   // eslint-disable-next-line @typescript-eslint/no-namespace
@@ -135,7 +136,8 @@ export function adminAuthMiddleware(_adminKeyPrefix: string) {
       return;
     }
 
-    const isAdmin = apiKeyManager.isAdminKey(apiKey) || process.env.ADMIN_API_KEY === apiKey;
+    const adminApiKey = process.env.ADMIN_API_KEY ? decryptSecret(process.env.ADMIN_API_KEY) : '';
+    const isAdmin = apiKeyManager.isAdminKey(apiKey) || adminApiKey === apiKey;
     if (!isAdmin) {
       logger.warn(`Unauthorized admin access: ${apiKey.substring(0, 8)}...`);
       res.status(403).json({
@@ -153,7 +155,6 @@ export function adminAuthMiddleware(_adminKeyPrefix: string) {
 
 export function optionalAuthMiddleware(req: Request, res: Response, next: NextFunction): void {
   const apiKey = extractApiKey(req);
-  const ctx = requestContext(req);
 
   if (!apiKey) {
     next();

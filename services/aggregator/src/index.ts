@@ -12,6 +12,7 @@ import { HealthServer } from './observability/health-server';
 import AlertManager from './observability/alert-manager';
 import { sourceCircuitBreaker } from './price-aggregation/source-circuit-breaker';
 import { eventBus } from './domain-events';
+import { decryptSecret } from './infrastructure/crypto';
 
 // In-process counters surfaced as structured log lines; the API /metrics
 // endpoint (prom-client) collects the canonical Prometheus metrics.
@@ -32,10 +33,10 @@ function incAnomaly(asset: string, method: string): void {
 
 const aggregator = new PriceAggregator();
 const alertManager = new AlertManager({
-  webhookUrl: process.env.ALERT_WEBHOOK_URL,
-  slackWebhookUrl: process.env.ALERT_SLACK_WEBHOOK_URL,
-  pagerDutyRoutingKey: process.env.ALERT_PAGERDUTY_ROUTING_KEY,
-  emailWebhookUrl: process.env.ALERT_EMAIL_WEBHOOK_URL,
+  webhookUrl: process.env.ALERT_WEBHOOK_URL ? decryptSecret(process.env.ALERT_WEBHOOK_URL) : undefined,
+  slackWebhookUrl: process.env.ALERT_SLACK_WEBHOOK_URL ? decryptSecret(process.env.ALERT_SLACK_WEBHOOK_URL) : undefined,
+  pagerDutyRoutingKey: process.env.ALERT_PAGERDUTY_ROUTING_KEY ? decryptSecret(process.env.ALERT_PAGERDUTY_ROUTING_KEY) : undefined,
+  emailWebhookUrl: process.env.ALERT_EMAIL_WEBHOOK_URL ? decryptSecret(process.env.ALERT_EMAIL_WEBHOOK_URL) : undefined,
   emailRecipients: (process.env.ALERT_EMAIL_RECIPIENTS || '').split(',').map((s) => s.trim()).filter(Boolean),
   sourceDisagreementThresholdPercent: parseFloat(process.env.ALERT_SOURCE_DISAGREEMENT_PERCENT || '5'),
 });

@@ -1,5 +1,6 @@
 import crypto from 'crypto';
 import winston from 'winston';
+import { decryptSecret } from './crypto';
 
 export type AuditEvent =
   | 'auth.success'
@@ -33,7 +34,9 @@ interface AuditEntry {
   hmac: string;
 }
 
-const AUDIT_SECRET = process.env.AUDIT_SECRET || 'default-audit-secret-change-in-prod';
+const AUDIT_SECRET = process.env.AUDIT_SECRET
+  ? decryptSecret(process.env.AUDIT_SECRET)
+  : 'default-audit-secret-change-in-prod';
 
 const auditFileLogger = winston.createLogger({
   level: 'info',
