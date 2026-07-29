@@ -14,12 +14,15 @@ export interface AlertThresholds {
 export interface AlertEvent {
   timestamp: number;
   asset: string;
-  type: 'deviation' | 'stale' | 'source_down';
+  type: 'deviation' | 'stale' | 'source_down' | 'sla_breach';
   message: string;
   previousPrice?: string;
   currentPrice?: string;
   deviationPercent?: number;
   affectedSources?: string[];
+  source?: string;
+  elapsedSeconds?: number;
+  thresholdSeconds?: number;
 }
 
 export interface AlertConfig {
@@ -38,6 +41,12 @@ export interface AlertConfig {
   emailRecipients?: string[];
   /** Cross-source disagreement threshold, percent */
   sourceDisagreementThresholdPercent?: number;
+  /** SLA breach alerting: max breaches per window before alert fires */
+  slaBreachMaxPerWindow?: number;
+  /** SLA breach alerting: rolling window in seconds */
+  slaBreachWindowSeconds?: number;
+  /** SLA threshold in seconds (must match SLA_THRESHOLD_SECONDS in base.ts) */
+  slaThresholdSeconds?: number;
 }
 
 class AlertManager {
@@ -46,12 +55,16 @@ class AlertManager {
   private sourceFailureCount: Map<string, number> = new Map();
   private config: AlertConfig;
   private alertHistory: AlertEvent[] = [];
+  private slaBreachTimestamps: Map<string, number[]> = new Map();
   private static readonly DEFAULT_CONFIG: AlertConfig = {
     webhookRetries: 3,
     webhookRetryDelayMs: 1000,
     enableConsoleLog: true,
     enableFileLog: true,
     alertHistoryPath: path.resolve(__dirname, '../../data/alerts.jsonl'),
+    slaBreachMaxPerWindow: 10,
+    slaBreachWindowSeconds: 300,
+    slaThresholdSeconds: 5,
   };
 
   constructor(config: Partial<AlertConfig> = {}) {
@@ -132,6 +145,36 @@ class AlertManager {
       } else {
         this.sourceFailureCount.set(failureKey, 0);
       }
+    }
+  }
+
+  /**
+   * Records an SLA breach and fires an alert when the rolling-window rate
+   * exceeds the configured threshold.
+   */
+  async checkSlaBreach(source: string, asset: string, elapsedSeconds: number): Promise<void> {
+    const now = Math.floor(Date.now() / 1000);
+    const key = `${source}:${asset}`;
+    const timestamps = this.slaBreachTimestamps.get(key) || [];
+
+    const windowStart = now - (this.config.slaBreachWindowSeconds ?? 300);
+    const recent = timestamps.filter((t) => t >= windowStart);
+    recent.push(now);
+    this.slaBreachTimestamps.set(key, recent);
+
+    const thresholdSeconds = this.config.slaThresholdSeconds ?? 5;
+    if (recent.length > (this.config.slaBreachMaxPerWindow ?? 10)) {
+      await this.emitAlert({
+        timestamp: now,
+        asset,
+        type: 'sla_breach',
+        message: `SLA breach threshold exceeded for ${source}/${asset}: ${recent.length} breaches in ${this.config.slaBreachWindowSeconds ?? 300}s (max: ${this.config.slaBreachMaxPerWindow ?? 10})`,
+        source,
+        elapsedSeconds,
+        thresholdSeconds,
+      });
+
+      this.slaBreachTimestamps.set(key, []);
     }
   }
 
@@ -228,7 +271,7 @@ class AlertManager {
           payload: {
             summary: alert.message,
             source: 'price-oracle-aggregator',
-            severity: alert.type === 'source_down' ? 'critical' : 'warning',
+            severity: (alert.type === 'source_down' || alert.type === 'sla_breach') ? 'critical' : 'warning',
             custom_details: alert,
           },
         }),

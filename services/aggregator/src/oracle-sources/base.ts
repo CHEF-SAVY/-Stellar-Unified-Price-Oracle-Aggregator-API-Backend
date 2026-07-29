@@ -3,6 +3,7 @@ import BigNumber from 'bignumber.js';
 import { logger } from '../observability/logger';
 import { NormalizedPrice, OracleSourceName, SourceHealthStatus } from '../infrastructure/types';
 import { sourceCircuitBreaker } from '../price-aggregation/source-circuit-breaker';
+import { eventBus } from '../domain-events';
 import {
   oracleSourceLatency,
   oracleSourceRequestsTotal,
@@ -75,6 +76,16 @@ export abstract class BaseSource {
       oracleSourceRequestsTotal.inc({ source: this.name, status: 'success' });
       if (elapsed > SLA_THRESHOLD_SECONDS) {
         oracleSourceSlaBreaches.inc({ source: this.name });
+        eventBus.publish({
+          type: 'sla_breach',
+          payload: {
+            source: this.name,
+            asset,
+            elapsedSeconds: elapsed,
+            thresholdSeconds: SLA_THRESHOLD_SECONDS,
+          },
+          timestamp: Date.now(),
+        });
       }
 
       this.health.lastSuccess = Math.floor(Date.now() / 1000);

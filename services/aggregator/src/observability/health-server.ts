@@ -4,6 +4,7 @@ import { withCorrelation, correlationHeaders } from '../infrastructure/correlati
 import { SourceCBStatus } from '../price-aggregation/source-circuit-breaker';
 import { register } from './metrics';
 import { getDailyCounts } from '../infrastructure/cost-model';
+import { getUptimeHistory, getUptimeForPeriod, getLatestUptime } from '../persistence/uptime-history';
 
 interface HealthSnapshot {
   sourceHealth: Record<string, any>;
@@ -65,6 +66,50 @@ export class HealthServer {
           hasPrices,
           openCircuitBreakers: openCircuits.length,
         }));
+        return;
+      }
+
+      // ── Uptime history query endpoints ──────────────────────────────
+      const uptimeMatch = url.pathname.match(/^\/health\/uptime\/(\w+)$/);
+      if (uptimeMatch) {
+        const source = uptimeMatch[1];
+        const from = url.searchParams.get('from');
+        const to = url.searchParams.get('to');
+        const limit = parseInt(url.searchParams.get('limit') || '720', 10);
+        const window = url.searchParams.get('window');
+
+        if (window) {
+          const windowSeconds = parseInt(window, 10);
+          const stats = getUptimeForPeriod(source, windowSeconds);
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ source, ...stats }));
+          return;
+        }
+
+        const history = getUptimeHistory(
+          source,
+          from ? parseInt(from, 10) : undefined,
+          to ? parseInt(to, 10) : undefined,
+          limit,
+        );
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ source, history }));
+        return;
+      }
+
+      if (url.pathname === '/health/uptime') {
+        const snap = this.getSnapshot();
+        const uptimeSummary = Object.entries(snap.sourceHealth).map(([name, h]: [string, any]) => ({
+          source: name,
+          current: {
+            healthy: h.healthy,
+            uptimePercent: h.uptimePercent,
+            consecutiveFailures: h.consecutiveFailures,
+          },
+          latest: getLatestUptime(name),
+        }));
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ sources: uptimeSummary }));
         return;
       }
 
