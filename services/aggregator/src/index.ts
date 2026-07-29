@@ -5,6 +5,7 @@ import { PriceAggregator } from './price-aggregation/aggregator';
 import { AggregatedPrice, NormalizedPrice } from './infrastructure/types';
 import { ContractPublisher } from './contract-publishing/publisher';
 import { appendHistoricalPrice } from './persistence/history';
+import { FileArchivalService } from './persistence/file-archival';
 import { DatabaseClient } from './persistence/database';
 import { BaseSource } from './oracle-sources/base';
 import { WebSocketServer } from './infrastructure/ws-server';
@@ -32,6 +33,7 @@ function incAnomaly(asset: string, method: string): void {
 }
 
 const aggregator = new PriceAggregator();
+const fileArchival = new FileArchivalService();
 const alertManager = new AlertManager({
   webhookUrl: process.env.ALERT_WEBHOOK_URL ? decryptSecret(process.env.ALERT_WEBHOOK_URL) : undefined,
   slackWebhookUrl: process.env.ALERT_SLACK_WEBHOOK_URL ? decryptSecret(process.env.ALERT_SLACK_WEBHOOK_URL) : undefined,
@@ -225,8 +227,11 @@ async function main(): Promise<void> {
     }
   }, config.pollingIntervalMs);
 
+  fileArchival.start();
+
   process.on('SIGTERM', () => {
     logger.info('Shutting down...');
+    fileArchival.stop();
     wss.stop();
     healthServer.stop();
     if (db) {

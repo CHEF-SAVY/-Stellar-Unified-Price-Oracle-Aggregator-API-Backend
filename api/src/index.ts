@@ -28,16 +28,16 @@ import { DbHealthMonitor } from './infrastructure/db-health-monitor';
 import { DataConsistencyChecker } from './infrastructure/data-consistency';
 import { BackupService } from './infrastructure/backup';
 import { setDatabase } from './price-serving/price-store';
+import rateLimit from 'express-rate-limit';
 import { initializeTracing } from './observability/tracing';
+import { AppError } from './infrastructure/app-error';
+import { ErrorCode } from './infrastructure/catalog';
+import platformRoutes from './platform/routes';
 import adminRoutes from './governance/admin';
 import sandboxRoutes, { initializeSandboxCache } from './routes/sandbox';
 import featureFlagRoutes from './routes/featureFlags';
 import eventRoutes from './routes/events';
 import { uptimeTracker } from './observability/uptime-tracker';
-import { AppError } from './infrastructure/app-error';
-import { ErrorCode } from './infrastructure/catalog';
-import featureFlagRoutes from './routes/featureFlags';
-import eventRoutes from './routes/events';
 
 // Initialize distributed tracing
 initializeTracing(config.tracing);
