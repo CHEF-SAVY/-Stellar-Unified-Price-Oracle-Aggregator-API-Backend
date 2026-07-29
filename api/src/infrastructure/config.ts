@@ -96,6 +96,7 @@ export const config = {
     csrfTtlMs: parseInt(process.env.WS_CSRF_TTL_MS || '300000', 10),
     rateLimitMax: parseInt(process.env.WS_RATE_LIMIT_MAX || '20', 10),
     rateLimitWindowMs: parseInt(process.env.WS_RATE_LIMIT_WINDOW_MS || '60000', 10),
+    maxConcurrentConnectionsPerIp: parseInt(process.env.WS_MAX_CONCURRENT_CONNECTIONS_PER_IP || '10', 10),
     hmacSecret: secretEnv('WS_HMAC_SECRET'),
   },
   // Encryption at rest for sensitive config + historical data (issue #41).
