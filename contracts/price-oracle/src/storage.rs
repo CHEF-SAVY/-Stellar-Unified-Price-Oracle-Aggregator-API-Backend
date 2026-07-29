@@ -1,7 +1,7 @@
 use soroban_sdk::{Address, Bytes, Env, String, Vec};
 
 use crate::errors::OracleError;
-use crate::types::{DataKey, MultiSigConfig, Proposal, PriceDataPoint, SourceReputation};
+use crate::types::{DataKey, GovernanceConfig, MultiSigConfig, MultiSigProposal, GovernanceProposal, PriceDataPoint, SourceReputation};
 
 // Maximum number of historical data points kept per asset.
 // Older entries beyond this cap are dropped on each write, keeping instance
@@ -231,25 +231,76 @@ pub fn get_multisig_config(env: &Env) -> Option<MultiSigConfig> {
     env.storage().instance().get(&DataKey::MultiSigConfig)
 }
 
-pub fn get_proposal_count(env: &Env) -> u32 {
+pub fn get_msig_proposal_count(env: &Env) -> u32 {
     env.storage()
         .instance()
-        .get(&DataKey::ProposalCount)
+        .get(&DataKey::MultiSigProposalCount)
         .unwrap_or(0)
 }
 
-pub fn set_proposal_count(env: &Env, count: u32) {
-    env.storage().instance().set(&DataKey::ProposalCount, &count);
+pub fn set_msig_proposal_count(env: &Env, count: u32) {
+    env.storage().instance().set(&DataKey::MultiSigProposalCount, &count);
 }
 
-pub fn set_proposal(env: &Env, proposal: &Proposal) {
+pub fn set_msig_proposal(env: &Env, proposal: &MultiSigProposal) {
     env.storage()
         .instance()
-        .set(&DataKey::Proposal(proposal.id), proposal);
+        .set(&DataKey::MultiSigProposal(proposal.id), proposal);
 }
 
-pub fn get_proposal(env: &Env, id: u32) -> Option<Proposal> {
-    env.storage().instance().get(&DataKey::Proposal(id))
+pub fn get_msig_proposal(env: &Env, id: u32) -> Option<MultiSigProposal> {
+    env.storage().instance().get(&DataKey::MultiSigProposal(id))
+}
+
+// ── Governance (token-based voting) ──────────────────────────────────────────
+
+pub fn set_gov_config(env: &Env, config: &GovernanceConfig) {
+    env.storage().instance().set(&DataKey::GovernanceConfig, config);
+}
+
+pub fn get_gov_config(env: &Env) -> Option<GovernanceConfig> {
+    env.storage().instance().get(&DataKey::GovernanceConfig)
+}
+
+pub fn increment_proposal_count(env: &Env) -> u32 {
+    let count = env.storage()
+        .instance()
+        .get(&DataKey::GovernanceProposalCount)
+        .unwrap_or(0);
+    let next = count + 1;
+    env.storage()
+        .instance()
+        .set(&DataKey::GovernanceProposalCount, &next);
+    next
+}
+
+pub fn get_proposal_count(env: &Env) -> u32 {
+    env.storage()
+        .instance()
+        .get(&DataKey::GovernanceProposalCount)
+        .unwrap_or(0)
+}
+
+pub fn set_gov_proposal(env: &Env, proposal: &GovernanceProposal) {
+    env.storage()
+        .instance()
+        .set(&DataKey::GovernanceProposal(proposal.id), proposal);
+}
+
+pub fn get_gov_proposal(env: &Env, id: u32) -> Option<GovernanceProposal> {
+    env.storage().instance().get(&DataKey::GovernanceProposal(id))
+}
+
+pub fn record_vote(env: &Env, proposal_id: u32, voter: &Address, support: bool) {
+    env.storage()
+        .instance()
+        .set(&DataKey::GovernanceVote(proposal_id, voter.clone()), &support);
+}
+
+pub fn has_voted(env: &Env, proposal_id: u32, voter: &Address) -> bool {
+    env.storage()
+        .instance()
+        .has(&DataKey::GovernanceVote(proposal_id, voter.clone()))
 }
 
 pub fn get_stake(env: &Env, addr: &Address) -> i128 {

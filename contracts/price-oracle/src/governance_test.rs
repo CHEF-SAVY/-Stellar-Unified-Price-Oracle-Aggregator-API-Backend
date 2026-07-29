@@ -129,7 +129,7 @@ mod governance_tests {
 
         let action = ProposalAction::SetTrustedAsset(
             String::from_str(&ctx.env, "XLM"),
-            true,
+            1,
         );
         let id = ctx.gov.propose(
             &ctx.proposer,
@@ -154,7 +154,7 @@ mod governance_tests {
 
         let action = ProposalAction::SetTrustedAsset(
             String::from_str(&ctx.env, "BTC"),
-            true,
+            1,
         );
         assert!(ctx.gov.try_propose(
             &poor,
@@ -170,7 +170,7 @@ mod governance_tests {
 
         let action = ProposalAction::SetTrustedAsset(
             String::from_str(&ctx.env, "XLM"),
-            true,
+            1,
         );
         assert!(ctx.gov.try_propose(
             &ctx.proposer,
@@ -188,10 +188,10 @@ mod governance_tests {
 
         for i in 0u32..3 {
             let action = ProposalAction::SetTrustedAsset(
-                String::from_str(&ctx.env, "XLM"),
-                i % 2 == 0,
-            );
-            ctx.gov.propose(
+            String::from_str(&ctx.env, "XLM"),
+            (i % 2) as u32,
+        );
+        ctx.gov.propose(
                 &ctx.proposer,
                 &action,
                 &String::from_str(&ctx.env, "p"),
@@ -209,7 +209,7 @@ mod governance_tests {
 
         let action = ProposalAction::SetTrustedAsset(
             String::from_str(&ctx.env, "ETH"),
-            true,
+            1,
         );
         let id = ctx.gov.propose(
             &ctx.proposer,
@@ -236,7 +236,7 @@ mod governance_tests {
 
         let action = ProposalAction::SetTrustedAsset(
             String::from_str(&ctx.env, "ETH"),
-            true,
+            1,
         );
         let id = ctx.gov.propose(
             &ctx.proposer,
@@ -255,7 +255,7 @@ mod governance_tests {
 
         let action = ProposalAction::SetTrustedAsset(
             String::from_str(&ctx.env, "USDC"),
-            false,
+            0,
         );
         let id = ctx.gov.propose(
             &ctx.proposer,
@@ -285,7 +285,7 @@ mod governance_tests {
 
         let action = ProposalAction::SetTrustedAsset(
             String::from_str(&ctx.env, "XLM"),
-            true,
+            1,
         );
         let id = ctx.gov.propose(
             &ctx.proposer,
@@ -311,7 +311,7 @@ mod governance_tests {
 
         let action = ProposalAction::SetTrustedAsset(
             String::from_str(&ctx.env, "XLM"),
-            true,
+            1,
         );
         let id = ctx.gov.propose(
             &ctx.proposer,
@@ -344,7 +344,7 @@ mod governance_tests {
 
         let action = ProposalAction::SetTrustedAsset(
             String::from_str(&ctx.env, "BTC"),
-            true,
+            1,
         );
         let id = ctx.gov.propose(
             &ctx.proposer,
@@ -370,7 +370,7 @@ mod governance_tests {
 
         let action = ProposalAction::SetTrustedAsset(
             String::from_str(&ctx.env, "BTC"),
-            true,
+            1,
         );
         let id = ctx.gov.propose(
             &ctx.proposer,
@@ -393,7 +393,7 @@ mod governance_tests {
 
         let action = ProposalAction::SetTrustedAsset(
             String::from_str(&ctx.env, "BTC"),
-            true,
+            1,
         );
         let id = ctx.gov.propose(
             &ctx.proposer,
@@ -419,7 +419,7 @@ mod governance_tests {
 
         let action = ProposalAction::SetTrustedAsset(
             String::from_str(&ctx.env, "ETH"),
-            true,
+            1,
         );
         let id = ctx.gov.propose(
             &ctx.proposer,
@@ -445,7 +445,7 @@ mod governance_tests {
 
         let action = ProposalAction::SetTrustedAsset(
             String::from_str(&ctx.env, "USDT"),
-            true,
+            1,
         );
         let id = ctx.gov.propose(
             &ctx.proposer,
@@ -499,7 +499,7 @@ mod governance_tests {
 
         let action = ProposalAction::SetTrustedAsset(
             String::from_str(&ctx.env, "USDT"),
-            false,
+            0,
         );
         let id = ctx.gov.propose(
             &ctx.proposer,
@@ -520,7 +520,7 @@ mod governance_tests {
 
         let action = ProposalAction::SetTrustedAsset(
             String::from_str(&ctx.env, "USDT"),
-            false,
+            0,
         );
         let id = ctx.gov.propose(
             &ctx.proposer,
@@ -541,7 +541,7 @@ mod governance_tests {
 
         let action = ProposalAction::SetTrustedAsset(
             String::from_str(&ctx.env, "XLM"),
-            true,
+            1,
         );
         let id = ctx.gov.propose(
             &ctx.proposer,
@@ -560,7 +560,7 @@ mod governance_tests {
 
         let action = ProposalAction::SetTrustedAsset(
             String::from_str(&ctx.env, "XLM"),
-            true,
+            1,
         );
         let id = ctx.gov.propose(
             &ctx.proposer,
@@ -584,7 +584,7 @@ mod governance_tests {
 
         let action = ProposalAction::SetTrustedAsset(
             String::from_str(&ctx.env, "BTC"),
-            false,
+            0,
         );
         let id = ctx.gov.propose(
             &ctx.proposer,
@@ -606,7 +606,7 @@ mod governance_tests {
 
         let action = ProposalAction::SetTrustedAsset(
             String::from_str(&ctx.env, "ETH"),
-            false,
+            0,
         );
         let id = ctx.gov.propose(
             &ctx.proposer,
@@ -625,7 +625,7 @@ mod governance_tests {
 
         let action = ProposalAction::SetTrustedAsset(
             String::from_str(&ctx.env, "ETH"),
-            false,
+            0,
         );
         let id = ctx.gov.propose(
             &ctx.proposer,
@@ -653,7 +653,7 @@ mod governance_tests {
 
         let action = ProposalAction::SetTrustedAsset(
             String::from_str(&ctx.env, "XLM"),
-            true,
+            1,
         );
         let id = ctx.gov.propose(
             &ctx.proposer,
@@ -671,11 +671,11 @@ mod governance_tests {
 
         let action_a = ProposalAction::SetTrustedAsset(
             String::from_str(&ctx.env, "XLM"),
-            true,
+            1,
         );
         let action_b = ProposalAction::SetTrustedAsset(
             String::from_str(&ctx.env, "BTC"),
-            true,
+            1,
         );
 
         let id_a = ctx.gov.propose(

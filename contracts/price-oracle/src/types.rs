@@ -61,17 +61,68 @@ pub enum ProposalAction {
     AddSigner(Address),
     RemoveSigner(Address),
     SetThreshold(u32),
+    SetAdmin(Address),
+    AddOracleSource(Address, String),
+    RemoveOracleSource(Address),
+    UpdateGovernanceConfig(GovernanceConfig),
 }
 
 #[contracttype]
 #[derive(Clone, Debug)]
-pub struct Proposal {
+pub struct MultiSigProposal {
     pub id: u32,
     pub action: ProposalAction,
     pub approvals: Vec<Address>,
     pub executed: u32,              // 0 = pending, 1 = executed (bool avoided for XDR compat)
     pub created_at: u64,
     pub proposer: Address,
+}
+
+/// Governance proposal (token-based voting).  Distinct from MultiSigProposal
+/// because the lifecycle includes voting stages, timelock, descriptions, etc.
+#[contracttype]
+#[derive(Clone, Debug)]
+pub struct GovernanceProposal {
+    pub id: u32,
+    pub proposer: Address,
+    pub action: ProposalAction,
+    pub description: String,
+    pub votes_for: i128,
+    pub votes_against: i128,
+    pub voting_start: u64,
+    pub voting_end: u64,
+    pub execution_time: u64,
+    pub status: ProposalStatus,
+}
+
+/// Lifecycle status of a governance proposal.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum ProposalStatus {
+    Active,
+    Queued,
+    Ready,
+    Executed,
+    Defeated,
+    Cancelled,
+}
+
+/// On-chain governance configuration — voting parameters and token-gating.
+#[contracttype]
+#[derive(Clone, Debug)]
+pub struct GovernanceConfig {
+    /// SEP-41 token whose balance determines voting power.
+    pub token: Address,
+    /// Minimum voting period in ledger seconds.
+    pub voting_period: u64,
+    /// Minimum delay between passage and execution (timelock).
+    pub timelock_delay: u64,
+    /// Minimum total votes (for + against) needed for a proposal to pass.
+    pub quorum: i128,
+    /// Minimum token balance required to create a proposal.
+    pub proposal_threshold: i128,
+    /// Guardian address empowered to bypass timelock in emergencies.
+    pub guardian: Address,
 }
 
 #[contracttype]
@@ -100,6 +151,11 @@ pub enum DataKey {
  SlashCount(Address),
     // Issue #67 — multi-sig
     MultiSigConfig,
-    ProposalCount,
-    Proposal(u32),
+    MultiSigProposalCount,
+    MultiSigProposal(u32),
+    // Governance (token-based voting)
+    GovernanceConfig,
+    GovernanceProposalCount,
+    GovernanceProposal(u32),
+    GovernanceVote(u32, Address),
 }
