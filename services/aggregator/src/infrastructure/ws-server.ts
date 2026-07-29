@@ -17,9 +17,15 @@ export class WebSocketServer {
   private port: number;
   private guard = new WsConnectionGuard();
   private sweepTimer: NodeJS.Timeout | null = null;
+  private static instance: WebSocketServer;
 
   constructor(port: number) {
     this.port = port;
+    WebSocketServer.instance = this;
+  }
+
+  static getInstance(): WebSocketServer | null {
+    return WebSocketServer.instance || null;
   }
 
   start(): void {
@@ -65,6 +71,27 @@ export class WebSocketServer {
       }
     });
     if (sent > 0) wsMessagesTotal.inc({ service: SERVICE, direction: 'outbound' }, sent);
+  }
+
+  broadcastAlert(alert: unknown): void {
+    if (!this.wss) return;
+    const message = {
+      type: 'alert',
+      data: alert,
+      timestamp: Math.floor(Date.now() / 1000),
+    };
+    const payload = JSON.stringify(message);
+    let sent = 0;
+    this.wss.clients.forEach((client) => {
+      if (client.readyState === WebSocket.OPEN) {
+        client.send(payload);
+        sent++;
+      }
+    });
+    if (sent > 0) {
+      wsMessagesTotal.inc({ service: SERVICE, direction: 'outbound' }, sent);
+      logger.debug(`Broadcast alert to ${sent} WebSocket client(s)`, { type: (alert as any)?.type });
+    }
   }
 
   stop(): void {
