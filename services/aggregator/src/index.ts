@@ -13,6 +13,7 @@ import AlertManager from './observability/alert-manager';
 import { sourceCircuitBreaker } from './price-aggregation/source-circuit-breaker';
 import { eventBus } from './domain-events';
 import { decryptSecret } from './infrastructure/crypto';
+import { getVaultClient } from '@stellar-oracle/vault-client';
 
 // In-process counters surfaced as structured log lines; the API /metrics
 // endpoint (prom-client) collects the canonical Prometheus metrics.
@@ -171,6 +172,32 @@ async function main(): Promise<void> {
   logger.info('Stellar Price Oracle Aggregator starting...');
   logger.info(`Polling interval: ${config.pollingIntervalMs}ms`);
   logger.info(`Watched assets: ${config.assets.join(', ')}`);
+
+  // Initialize Vault for contract admin key management
+  try {
+    const vault = getVaultClient();
+    await vault.initialize();
+
+    // Load contract admin key from Vault; fall back to env if not present
+    const vaultAdmin = await vault.loadContractAdmin();
+    if (vaultAdmin && !process.env.ADMIN_SECRET_KEY) {
+      process.env.ADMIN_SECRET_KEY = decryptSecret(vaultAdmin.secretKey);
+      logger.info('Loaded contract admin key from Vault');
+    } else if (!vaultAdmin && process.env.ADMIN_SECRET_KEY) {
+      await vault.seedDefaults({
+        contractAdmin: {
+          secretKey: process.env.ADMIN_SECRET_KEY,
+          contractId: config.soroban.contractId,
+          networkPassphrase: config.soroban.networkPassphrase,
+          label: 'default-admin',
+        },
+      });
+      logger.info('Seeded contract admin key into Vault from environment');
+    }
+    logger.info('Vault secrets engine initialized');
+  } catch (err) {
+    logger.warn('Vault not available — using environment-based secrets fallback', err);
+  }
 
   if (!config.soroban.contractId) {
     logger.warn('No contract ID configured — running in dry-run mode');

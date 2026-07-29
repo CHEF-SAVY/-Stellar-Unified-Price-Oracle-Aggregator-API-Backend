@@ -68,7 +68,7 @@ router.get('/assets', async (req: Request, res: Response) => {
     sourceCount: Array.isArray(p.sources) ? p.sources.length : 1,
     status: 'active',
     lastUpdate: p.timestamp,
-    confidence: Array.isArray(p.sources) && p.sources.length >= 3 ? 'high' : p.sources?.length >= 2 ? 'medium' : 'low',
+    confidence: Array.isArray(p.sources) ? (p.sources.length >= 3 ? 'high' : p.sources.length >= 2 ? 'medium' : 'low') : 'low',
   }));
 
   const filtered = status === 'inactive' ? [] : assets;
@@ -112,7 +112,7 @@ router.get('/prices', async (req: Request, res: Response) => {
   const enriched = result.map((p) => ({
     ...p,
     sourceCount: Array.isArray(p.sources) ? p.sources.length : 1,
-    confidence: Array.isArray(p.sources) && p.sources.length >= 3 ? 'high' : p.sources?.length >= 2 ? 'medium' : 'low',
+    confidence: Array.isArray(p.sources) ? (p.sources.length >= 3 ? 'high' : p.sources.length >= 2 ? 'medium' : 'low') : 'low',
   }));
 
   const aggregated = {
@@ -151,7 +151,7 @@ router.get('/prices/:asset', async (req: Request, res: Response) => {
   const enriched = {
     ...price,
     sourceCount: Array.isArray(price.sources) ? price.sources.length : 1,
-    confidence: Array.isArray(price.sources) && price.sources.length >= 3 ? 'high' : price.sources?.length >= 2 ? 'medium' : 'low',
+    confidence: Array.isArray(price.sources) ? (price.sources.length >= 3 ? 'high' : price.sources.length >= 2 ? 'medium' : 'low') : 'low',
   };
 
   await pricesCache.set(cacheKey, enriched, 'price');
@@ -198,7 +198,7 @@ router.get('/prices/batch', async (req: Request, res: Response) => {
         price: {
           ...price,
           sourceCount: Array.isArray(price.sources) ? price.sources.length : 1,
-          confidence: Array.isArray(price.sources) && price.sources.length >= 3 ? 'high' : price.sources?.length >= 2 ? 'medium' : 'low',
+          confidence: Array.isArray(price.sources) ? (price.sources.length >= 3 ? 'high' : price.sources.length >= 2 ? 'medium' : 'low') : 'low',
         },
       });
     } else {
@@ -248,7 +248,7 @@ router.post('/prices/batch', async (req: Request, res: Response) => {
         price: {
           ...price,
           sourceCount: Array.isArray(price.sources) ? price.sources.length : 1,
-          confidence: Array.isArray(price.sources) && price.sources.length >= 3 ? 'high' : price.sources?.length >= 2 ? 'medium' : 'low',
+          confidence: Array.isArray(price.sources) ? (price.sources.length >= 3 ? 'high' : price.sources.length >= 2 ? 'medium' : 'low') : 'low',
         },
       });
     } else {

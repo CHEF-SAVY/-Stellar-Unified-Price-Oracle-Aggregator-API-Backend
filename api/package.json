@@ -24,6 +24,8 @@
     "pact": "npm run pact:consumer && npm run pact:provider"
   },
   "dependencies": {
+    "@stellar-oracle/types": "*",
+    "@stellar-oracle/vault-client": "*",
     "@opentelemetry/api": "^1.7.0",
     "@opentelemetry/auto-instrumentations-node": "^0.78.0",
     "@opentelemetry/exporter-jaeger": "^2.9.0",

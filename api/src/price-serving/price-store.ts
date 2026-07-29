@@ -1,5 +1,6 @@
 import fs from 'fs';
 import path from 'path';
+import type { ApiPrice, HistoricalPriceEntry } from '@stellar-oracle/types';
 import { DatabaseClient } from '../infrastructure/database';
 import { decrypt, isEncrypted } from '../governance/crypto';
 import { decodeCursor } from './pagination';
@@ -18,7 +19,7 @@ export function resetSandboxData(now = Math.floor(Date.now() / 1000)): void {
     ETH: '3500.0000000', USDT: '1.0000000',
   };
   for (const asset of SANDBOX_ASSETS) {
-    const history = Array.from({ length: 10 }, (_, index) => ({
+    const history: HistoricalPriceEntry[] = Array.from({ length: 10 }, (_, index) => ({
       price: prices[asset], decimals: 7, source: 'sandbox-fixture', timestamp: now - (9 - index) * 60,
     }));
     fs.writeFileSync(HISTORY_FILE(asset), JSON.stringify(history, null, 2));
@@ -26,27 +27,27 @@ export function resetSandboxData(now = Math.floor(Date.now() / 1000)): void {
 }
 
 /** Read and parse a history file, transparently decrypting if encrypted at rest. */
-function readHistoryFile(filePath: string): any[] {
+function readHistoryFile(filePath: string): unknown[] {
   const raw = fs.readFileSync(filePath, 'utf-8');
   if (!raw) return [];
   const contents = isEncrypted(raw) ? decrypt(raw) : raw;
-  return JSON.parse(contents);
+  return JSON.parse(contents) as unknown[];
 }
 
 export function setDatabase(database: DatabaseClient | null): void {
   db = database;
 }
 
-export async function readAssetPrices(): Promise<any[]> {
+export async function readAssetPrices(): Promise<ApiPrice[]> {
   if (db && db.isInitialized()) {
     try {
       const prices = await db.getAllLatestPrices();
       return prices.map((p: any) => ({
-        asset: p.asset,
-        price: p.price,
-        decimals: p.decimals,
-        source: p.source,
-        timestamp: p.timestamp,
+        asset: p.asset as string,
+        price: p.price as string,
+        decimals: p.decimals as number,
+        source: p.source as string,
+        timestamp: p.timestamp as number,
       }));
     } catch (err) {
       console.error('Failed to read from database, falling back to files', err);
@@ -57,20 +58,20 @@ export async function readAssetPrices(): Promise<any[]> {
   if (!fs.existsSync(dir)) return [];
 
   const files = fs.readdirSync(dir).filter((f) => f.startsWith('history-'));
-  const assets = new Map<string, any>();
+  const assets = new Map<string, ApiPrice>();
 
   for (const file of files) {
     try {
       const asset = file.replace('history-', '').replace('.json', '').toUpperCase();
       const data = readHistoryFile(path.join(dir, file));
       if (data.length > 0) {
-        const latest = data[data.length - 1];
+        const latest = data[data.length - 1] as Record<string, unknown>;
         assets.set(asset, {
           asset,
-          price: latest.price,
-          decimals: latest.decimals,
-          source: latest.source,
-          timestamp: latest.timestamp,
+          price: latest.price as string,
+          decimals: latest.decimals as number,
+          source: latest.source as string,
+          timestamp: latest.timestamp as number,
         });
       }
     } catch { /* skip corrupt files */ }
@@ -84,15 +85,15 @@ export async function readPriceHistory(
   from?: number,
   to?: number,
   limit = 100,
-): Promise<any[]> {
+): Promise<HistoricalPriceEntry[]> {
   if (db && db.isInitialized()) {
     try {
       const history = await db.getHistoricalPrices(asset, from, to, limit);
       return history.map((h: any) => ({
-        price: h.price,
-        decimals: h.decimals,
-        source: h.source,
-        timestamp: h.timestamp,
+        price: h.price as string,
+        decimals: h.decimals as number,
+        source: h.source as string,
+        timestamp: h.timestamp as number,
       }));
     } catch (err) {
       console.error('Failed to read from database, falling back to files', err);
@@ -103,9 +104,9 @@ export async function readPriceHistory(
   if (!fs.existsSync(filePath)) return [];
 
   try {
-    let history = readHistoryFile(filePath);
-    if (from) history = history.filter((h: any) => h.timestamp >= from);
-    if (to) history = history.filter((h: any) => h.timestamp <= to);
+    let history = readHistoryFile(filePath) as HistoricalPriceEntry[];
+    if (from) history = history.filter((h) => h.timestamp >= from);
+    if (to) history = history.filter((h) => h.timestamp <= to);
     return history.slice(-limit);
   } catch {
     return [];
@@ -122,7 +123,7 @@ export async function readPriceHistoryCursor(
   cursor: string | undefined,
   limit: number,
   to?: number,
-): Promise<any[]> {
+): Promise<HistoricalPriceEntry[]> {
   let afterTs: number | undefined;
   if (cursor) {
     const decoded = decodeCursor(cursor);
@@ -131,14 +132,13 @@ export async function readPriceHistoryCursor(
 
   if (db && db.isInitialized()) {
     try {
-      // Use afterTs as from (exclusive) when cursor is present
       const from = afterTs !== undefined ? afterTs + 1 : undefined;
       const history = await db.getHistoricalPrices(asset, from, to, limit);
       return history.map((h: any) => ({
-        price: h.price,
-        decimals: h.decimals,
-        source: h.source,
-        timestamp: h.timestamp,
+        price: h.price as string,
+        decimals: h.decimals as number,
+        source: h.source as string,
+        timestamp: h.timestamp as number,
       }));
     } catch (err) {
       console.error('Failed to read from database for cursor query, falling back to files', err);
@@ -149,10 +149,10 @@ export async function readPriceHistoryCursor(
   if (!fs.existsSync(filePath)) return [];
 
   try {
-    let history: any[] = readHistoryFile(filePath);
+    let history = readHistoryFile(filePath) as HistoricalPriceEntry[];
     history.sort((a, b) => a.timestamp - b.timestamp);
-    if (afterTs !== undefined) history = history.filter((h: any) => h.timestamp > afterTs!);
-    if (to !== undefined) history = history.filter((h: any) => h.timestamp <= to);
+    if (afterTs !== undefined) history = history.filter((h) => h.timestamp > afterTs!);
+    if (to !== undefined) history = history.filter((h) => h.timestamp <= to);
     return history.slice(0, limit);
   } catch {
     return [];
