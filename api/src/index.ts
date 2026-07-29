@@ -16,6 +16,7 @@ import { sanitizeInputs, cspHeaders } from './governance/sanitization';
 import { httpsRedirect, hstsHeaders } from './infrastructure/https';
 import { compressionMiddleware } from './infrastructure/compression';
 import { usageTrackingMiddleware } from './governance/usage-tracking';
+import { complianceAuditMiddleware } from './governance/compliance';
 import { PriceWebSocketServer } from './infrastructure/server';
 import { swaggerSpec } from './infrastructure/openapi';
 import v1Routes, { initializeCache } from './price-serving/v1';
@@ -35,6 +36,8 @@ import sandboxRoutes, { initializeSandboxCache } from './routes/sandbox';
 import { uptimeTracker } from './observability/uptime-tracker';
 import { AppError } from './infrastructure/app-error';
 import { ErrorCode } from './infrastructure/catalog';
+import featureFlagRoutes from './routes/featureFlags';
+import eventRoutes from './routes/events';
 
 // Initialize distributed tracing
 initializeTracing(config.tracing);
@@ -121,6 +124,7 @@ app.use(requestIdMiddleware);
 app.use(requestLogger);
 app.use(metricsMiddleware);
 app.use(usageTrackingMiddleware);
+app.use(complianceAuditMiddleware);
 app.use(
   rateLimit({
     windowMs: config.rateLimitWindowMs,
