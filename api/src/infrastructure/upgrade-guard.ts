@@ -17,6 +17,7 @@ interface RateBucket {
 
 export class WsUpgradeGuard {
   private buckets = new Map<string, RateBucket>();
+  private connectionCounts = new Map<string, number>();
 
   /**
    * `verifyClient`-compatible callback for the `ws` server. Returns the
@@ -28,6 +29,12 @@ export class WsUpgradeGuard {
   ): void => {
     const ip = this.clientIp(info.req);
     const origin = info.origin;
+
+    if (!this.checkConcurrentConnections(ip)) {
+      this.deny(ip, origin, 'connection-flood');
+      cb(false, 429, 'Too many concurrent connections from this IP');
+      return;
+    }
 
     if (!this.checkRateLimit(ip)) {
       this.deny(ip, origin, 'rate-limit');
@@ -75,6 +82,25 @@ export class WsUpgradeGuard {
     if (!isCsrfEnabled()) return true;
     const token = this.queryParam(req, 'token');
     return verifyWsCsrfToken(token);
+  }
+
+  onConnect(ip: string): void {
+    const count = this.connectionCounts.get(ip) || 0;
+    this.connectionCounts.set(ip, count + 1);
+  }
+
+  onDisconnect(ip: string): void {
+    const count = this.connectionCounts.get(ip) || 0;
+    if (count <= 1) {
+      this.connectionCounts.delete(ip);
+    } else {
+      this.connectionCounts.set(ip, count - 1);
+    }
+  }
+
+  private checkConcurrentConnections(ip: string): boolean {
+    const count = this.connectionCounts.get(ip) || 0;
+    return count < config.ws.maxConcurrentConnectionsPerIp;
   }
 
   private checkRateLimit(ip: string): boolean {
