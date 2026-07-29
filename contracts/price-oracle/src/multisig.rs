@@ -76,8 +76,8 @@ impl MultiSigAdminContract {
             proposer,
         };
 
-        storage::set_msig_proposal(&env, &proposal);
-        storage::set_msig_proposal_count(&env, id + 1);
+        storage::set_multisig_proposal(&env, &proposal);
+        storage::set_proposal_count(&env, id + 1);
         Ok(id)
     }
 
@@ -96,7 +96,7 @@ impl MultiSigAdminContract {
             return Err(OracleError::NotASigner);
         }
 
-        let mut proposal = storage::get_msig_proposal(&env, proposal_id)
+        let mut proposal = storage::get_multisig_proposal(&env, proposal_id)
             .ok_or(OracleError::ProposalNotFound)?;
 
         if proposal.executed == 1 {
@@ -108,7 +108,7 @@ impl MultiSigAdminContract {
         }
 
         proposal.approvals.push_back(signer);
-        storage::set_msig_proposal(&env, &proposal);
+        storage::set_multisig_proposal(&env, &proposal);
         Ok(())
     }
 
@@ -130,7 +130,7 @@ impl MultiSigAdminContract {
             return Err(OracleError::NotASigner);
         }
 
-        let mut proposal = storage::get_msig_proposal(&env, proposal_id)
+        let mut proposal = storage::get_multisig_proposal(&env, proposal_id)
             .ok_or(OracleError::ProposalNotFound)?;
 
         if proposal.executed == 1 {
@@ -146,7 +146,7 @@ impl MultiSigAdminContract {
 
         proposal.executed = 1;
         let action = proposal.action.clone();
-        storage::set_msig_proposal(&env, &proposal);
+        storage::set_multisig_proposal(&env, &proposal);
 
         Ok(action)
     }
@@ -156,7 +156,7 @@ impl MultiSigAdminContract {
     // -------------------------------------------------------------------------
 
     pub fn get_proposal(env: Env, proposal_id: u32) -> Option<MultiSigProposal> {
-        storage::get_msig_proposal(&env, proposal_id)
+        storage::get_multisig_proposal(&env, proposal_id)
     }
 
     pub fn get_config(env: Env) -> Option<MultiSigConfig> {

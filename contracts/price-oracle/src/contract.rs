@@ -224,8 +224,8 @@ impl PriceOracleContract {
             proposer,
         };
 
-        storage::set_msig_proposal(&env, &proposal);
-        storage::set_msig_proposal_count(&env, id + 1);
+        storage::set_multisig_proposal(&env, &proposal);
+        storage::set_proposal_count(&env, id + 1);
 
         Ok(id)
     }
@@ -244,7 +244,7 @@ impl PriceOracleContract {
             return Err(OracleError::NotASigner);
         }
 
-        let mut proposal = storage::get_msig_proposal(&env, proposal_id)
+        let mut proposal = storage::get_multisig_proposal(&env, proposal_id)
             .ok_or(OracleError::ProposalNotFound)?;
 
         if proposal.executed == 1 {
@@ -256,7 +256,7 @@ impl PriceOracleContract {
         }
 
         proposal.approvals.push_back(signer);
-        storage::set_msig_proposal(&env, &proposal);
+        storage::set_multisig_proposal(&env, &proposal);
         Ok(())
     }
 
@@ -274,7 +274,7 @@ impl PriceOracleContract {
             return Err(OracleError::NotASigner);
         }
 
-        let mut proposal = storage::get_msig_proposal(&env, proposal_id)
+        let mut proposal = storage::get_multisig_proposal(&env, proposal_id)
             .ok_or(OracleError::ProposalNotFound)?;
 
         if proposal.executed == 1 {
@@ -288,12 +288,12 @@ impl PriceOracleContract {
         apply_proposal_action(&env, &proposal.action)?;
 
         proposal.executed = 1;
-        storage::set_msig_proposal(&env, &proposal);
+        storage::set_multisig_proposal(&env, &proposal);
         Ok(())
     }
 
     pub fn get_proposal(env: Env, proposal_id: u32) -> Option<MultiSigProposal> {
-        storage::get_msig_proposal(&env, proposal_id)
+        storage::get_multisig_proposal(&env, proposal_id)
     }
 
     pub fn get_multisig_config(env: Env) -> Option<MultiSigConfig> {
@@ -492,7 +492,7 @@ fn apply_proposal_action(env: &Env, action: &ProposalAction) -> Result<(), Oracl
             storage::remove_source(env, source);
         }
         ProposalAction::SetTrustedAsset(asset, trusted) => {
-            storage::set_trusted_asset(env, asset, *trusted != 0);
+            storage::set_trusted_asset(env, asset, *trusted);
         }
         ProposalAction::TransferAdmin(new_admin) => {
             storage::set_admin(env, new_admin);
@@ -531,6 +531,7 @@ fn apply_proposal_action(env: &Env, action: &ProposalAction) -> Result<(), Oracl
                 storage::set_multisig_config(env, &config);
             }
         }
+        _ => {}
     }
     Ok(())
 }

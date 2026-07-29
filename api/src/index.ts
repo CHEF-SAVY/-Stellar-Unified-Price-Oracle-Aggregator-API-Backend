@@ -2,6 +2,7 @@ import express from 'express';
 import path from 'path';
 import cors from 'cors';
 import helmet from 'helmet';
+import rateLimit from 'express-rate-limit';
 import swaggerUi from 'swagger-ui-express';
 import { config } from './infrastructure/config';
 import { corsManager } from './governance/cors-manager';
@@ -28,8 +29,11 @@ import { DbHealthMonitor } from './infrastructure/db-health-monitor';
 import { DataConsistencyChecker } from './infrastructure/data-consistency';
 import { BackupService } from './infrastructure/backup';
 import { setDatabase } from './price-serving/price-store';
-import { initializeTracing } from './observability/tracing';
 import rateLimit from 'express-rate-limit';
+import { initializeTracing } from './observability/tracing';
+import { AppError } from './infrastructure/app-error';
+import { ErrorCode } from './infrastructure/catalog';
+import platformRoutes from './platform/routes';
 import adminRoutes from './governance/admin';
 import sandboxRoutes, { initializeSandboxCache } from './routes/sandbox';
 import featureFlagRoutes from './routes/featureFlags';
@@ -39,6 +43,9 @@ import platformRoutes from './platform/routes';
 import { uptimeTracker } from './observability/uptime-tracker';
 import { AppError } from './infrastructure/app-error';
 import { ErrorCode } from './infrastructure/catalog';
+import platformRoutes from './platform/routes';
+import { getVaultClient } from '@stellar-oracle/vault-client';
+import { apiKeyManager } from './governance/api-key-manager';
 
 // Initialize distributed tracing
 initializeTracing(config.tracing);
@@ -52,6 +59,30 @@ let consistencyChecker: DataConsistencyChecker | null = null;
 let backupService: BackupService | null = null;
 
 async function initializeApp(): Promise<void> {
+  // Initialize Vault for API key and webhook secret management
+  try {
+    const vault = getVaultClient();
+    await vault.initialize();
+
+    // Load API keys from Vault; seed from environment if Vault is empty
+    const vaultKeys = await vault.loadApiKeys();
+    if (vaultKeys && Object.keys(vaultKeys).length > 0) {
+      logger.info(`Loaded ${Object.keys(vaultKeys).length} API keys from Vault`);
+      apiKeyManager.loadKeysFromVault(vaultKeys);
+    } else {
+      // Keys loaded from env in the ApiKeyManager constructor already.
+      // If any keys exist in memory, back them up to Vault.
+      const memKeys = apiKeyManager.exportKeysForVault();
+      if (Object.keys(memKeys).length > 0) {
+        await vault.saveApiKeys(memKeys);
+        logger.info(`Seeded ${Object.keys(memKeys).length} API keys into Vault`);
+      }
+    }
+    logger.info('Vault secrets engine initialized');
+  } catch (err) {
+    logger.warn('Vault not available — using in-memory API key store fallback', err);
+  }
+
   if (config.databaseUrl) {
     try {
       db = new DatabaseClient(config.databaseUrl, logger);

@@ -1,7 +1,7 @@
 use soroban_sdk::{Address, Bytes, Env, String, Vec};
 
 use crate::errors::OracleError;
-use crate::types::{DataKey, GovernanceConfig, MultiSigConfig, MultiSigProposal, GovernanceProposal, PriceDataPoint, SourceReputation};
+use crate::types::{DataKey, GovernanceConfig, GovernanceProposal, MultiSigConfig, MultiSigProposal, PriceDataPoint, SourceReputation};
 
 // Maximum number of historical data points kept per asset.
 // Older entries beyond this cap are dropped on each write, keeping instance
@@ -59,18 +59,6 @@ pub fn set_storage_layout_version(env: &Env, version: u32) {
 
 pub fn get_storage_layout_version(env: &Env) -> u32 {
     env.storage().instance().get(&DataKey::StorageLayoutVersion).unwrap_or(1)
-}
-
-pub fn verify_admin(env: &Env, admin: &Address) -> Result<(), OracleError> {
-    let stored: Address = env
-        .storage()
-        .instance()
-        .get(&DataKey::Admin)
-        .ok_or(OracleError::AdminOnly)?;
-    if stored != *admin {
-        return Err(OracleError::AdminOnly);
-    }
-    Ok(())
 }
 
 pub fn is_authorized_source(env: &Env, source: &Address) -> bool {
@@ -222,7 +210,8 @@ pub fn remove_source_reputation(env: &Env, source: &Address) {
         .remove(&DataKey::SourceReputation(source.clone()));
 }
 
-// Issue #67 — multi-sig
+// ── Multi-sig ─────────────────────────────────────────────────────────────────
+
 pub fn set_multisig_config(env: &Env, config: &MultiSigConfig) {
     env.storage().instance().set(&DataKey::MultiSigConfig, config);
 }
@@ -287,6 +276,38 @@ pub fn set_gov_proposal(env: &Env, proposal: &GovernanceProposal) {
         .set(&DataKey::GovernanceProposal(proposal.id), proposal);
 }
 
+pub fn set_multisig_proposal(env: &Env, proposal: &MultiSigProposal) {
+    env.storage()
+        .instance()
+        .set(&DataKey::MultiSigProposal(proposal.id), proposal);
+}
+
+pub fn get_multisig_proposal(env: &Env, id: u32) -> Option<MultiSigProposal> {
+    env.storage().instance().get(&DataKey::MultiSigProposal(id))
+}
+
+// ── Governance ────────────────────────────────────────────────────────────────
+
+pub fn get_gov_config(env: &Env) -> Option<GovernanceConfig> {
+    env.storage().instance().get(&DataKey::GovernanceConfig)
+}
+
+pub fn set_gov_config(env: &Env, config: &GovernanceConfig) {
+    env.storage().instance().set(&DataKey::GovernanceConfig, config);
+}
+
+pub fn increment_proposal_count(env: &Env) -> u32 {
+    let count = get_proposal_count(env);
+    set_proposal_count(env, count + 1);
+    count + 1
+}
+
+pub fn set_gov_proposal(env: &Env, proposal: &GovernanceProposal) {
+    env.storage()
+        .instance()
+        .set(&DataKey::GovernanceProposal(proposal.id), proposal);
+}
+
 pub fn get_gov_proposal(env: &Env, id: u32) -> Option<GovernanceProposal> {
     env.storage().instance().get(&DataKey::GovernanceProposal(id))
 }
@@ -294,37 +315,39 @@ pub fn get_gov_proposal(env: &Env, id: u32) -> Option<GovernanceProposal> {
 pub fn record_vote(env: &Env, proposal_id: u32, voter: &Address, support: bool) {
     env.storage()
         .instance()
-        .set(&DataKey::GovernanceVote(proposal_id, voter.clone()), &support);
+        .set(&DataKey::Vote(proposal_id, voter.clone()), &support);
 }
 
 pub fn has_voted(env: &Env, proposal_id: u32, voter: &Address) -> bool {
     env.storage()
         .instance()
-        .has(&DataKey::GovernanceVote(proposal_id, voter.clone()))
+        .has(&DataKey::Vote(proposal_id, voter.clone()))
 }
 
+// ── Staking ───────────────────────────────────────────────────────────────────
+
 pub fn get_stake(env: &Env, addr: &Address) -> i128 {
-env.storage()
-.instance()
-.get(&DataKey::StakeInfo(addr.clone()))
-.unwrap_or(0)
+    env.storage()
+        .instance()
+        .get(&DataKey::StakeInfo(addr.clone()))
+        .unwrap_or(0)
 }
 
 pub fn set_stake(env: &Env, addr: &Address, amount: &i128) {
-env.storage()
-.instance()
-.set(&DataKey::StakeInfo(addr.clone()), amount);
+    env.storage()
+        .instance()
+        .set(&DataKey::StakeInfo(addr.clone()), amount);
 }
 
 pub fn get_slash_count(env: &Env, addr: &Address) -> u32 {
-env.storage()
-.instance()
-.get(&DataKey::SlashCount(addr.clone()))
-.unwrap_or(0)
+    env.storage()
+        .instance()
+        .get(&DataKey::SlashCount(addr.clone()))
+        .unwrap_or(0)
 }
 
 pub fn set_slash_count(env: &Env, addr: &Address, count: &u32) {
-env.storage()
-.instance()
-.set(&DataKey::SlashCount(addr.clone()), count);
+    env.storage()
+        .instance()
+        .set(&DataKey::SlashCount(addr.clone()), count);
 }

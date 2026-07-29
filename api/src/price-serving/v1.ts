@@ -10,8 +10,10 @@ import { buildCursorMeta, applyOffsetPagination } from './pagination';
 import { HybridCache } from './cache';
 import { cacheHitTotal, cacheMissTotal, lastPriceTimestamp, priceQueriesTotal } from '../observability/metrics';
 import { links, withLinks } from './hypermedia';
+import { createLineageForPrice } from '../platform/lineage';
 import { Router, Request, Response } from 'express';
 import { conditionalCache } from './conditional-cache';
+import { createLineageForPrice } from '../platform/lineage';
 import { eventBus } from '../domain-events';
 import complianceRoutes from '../governance/compliance';
 import { createLineageForPrice } from '../platform/lineage';
@@ -105,7 +107,7 @@ router.get('/prices', async (req: Request, res: Response) => {
       ...aggregated,
       prices: aggregated.prices.map((price) => ({
         ...price,
-        lineage: createLineageForPrice(price, '/api/v1'),
+        lineage: createLineageForPrice(price as unknown as Record<string, unknown>, '/api/v1'),
       })),
     },
     links.prices(),
@@ -150,8 +152,8 @@ router.get('/prices/:asset', async (req: Request, res: Response) => {
   lastPriceTimestamp.set({ asset }, price.timestamp);
   const data = withLinks(
     {
-      ...price,
-      lineage: createLineageForPrice(price, '/api/v1'),
+    ...price,
+    lineage: createLineageForPrice(price as unknown as Record<string, unknown>, '/api/v1'),
     },
     links.asset(asset),
   );

@@ -3,8 +3,8 @@ import path from 'path';
 import { config } from '../infrastructure/config';
 import { encrypt, decrypt, isEncrypted, isEncryptionConfigured } from '../infrastructure/crypto';
 
-const DATA_DIR = path.resolve(__dirname, '../../data');
-const HISTORY_FILE = (asset: string) => path.join(DATA_DIR, `history-${asset.toLowerCase()}.json`);
+export const DATA_DIR = path.resolve(__dirname, '../../data');
+export const HISTORY_FILE = (asset: string) => path.join(DATA_DIR, `history-${asset.toLowerCase()}.json`);
 
 export function ensureDataDir(): void {
   if (!fs.existsSync(DATA_DIR)) {
@@ -13,11 +13,11 @@ export function ensureDataDir(): void {
 }
 
 /** Whether historical price files should be encrypted at rest (issue #41). */
-function historyEncryptionEnabled(): boolean {
+export function historyEncryptionEnabled(): boolean {
   return config.security.encryption.encryptHistory && isEncryptionConfigured();
 }
 
-function readHistoryFile(filePath: string): any[] {
+export function readHistoryFile(filePath: string): any[] {
   if (!fs.existsSync(filePath)) return [];
   const raw = fs.readFileSync(filePath, 'utf-8');
   if (!raw) return [];
@@ -25,7 +25,7 @@ function readHistoryFile(filePath: string): any[] {
   return JSON.parse(contents);
 }
 
-function writeHistoryFile(filePath: string, history: any[]): void {
+export function writeHistoryFile(filePath: string, history: any[]): void {
   const serialized = JSON.stringify(history);
   const payload = historyEncryptionEnabled() ? encrypt(serialized) : serialized;
   fs.writeFileSync(filePath, payload);

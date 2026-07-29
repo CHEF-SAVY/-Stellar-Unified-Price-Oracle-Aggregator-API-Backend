@@ -58,12 +58,6 @@ fn apply_action(env: &Env, action: &ProposalAction) {
         ProposalAction::UpdateGovernanceConfig(new_config) => {
             storage::set_gov_config(env, new_config);
         }
-        ProposalAction::SetDeviationThreshold(threshold_bps) => {
-            storage::set_deviation_threshold(env, *threshold_bps);
-        }
-        ProposalAction::ResetReputation(source) => {
-            storage::remove_source_reputation(env, source);
-        }
         _ => {}
     }
 }
