@@ -110,7 +110,7 @@ class InMemoryEventStorage implements EventStorage {
   async append(event: DomainEvent): Promise<void> {
     if (this.seenIds.has(event.id)) {
       // Exactly-once guard — idempotent append
-      defaultLogger.debug(`Duplicate event ignored (exactly-once guard): ${event.id}`);
+      defaultLogger.debug('Duplicate event ignored (exactly-once guard)', { eventId: event.id });
       return;
     }
     this.seenIds.add(event.id);
@@ -175,7 +175,7 @@ export class EventStore {
       version,
     };
     await this.storage.append(event as DomainEvent);
-    defaultLogger.debug(`Event appended: ${event.id} stream=${streamId} type=${type} v=${version}`);
+    defaultLogger.debug('Event appended', { eventId: event.id, streamId, type, version });
     return event;
   }
 
