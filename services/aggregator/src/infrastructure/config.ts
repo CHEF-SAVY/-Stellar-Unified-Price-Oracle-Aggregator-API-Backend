@@ -79,6 +79,14 @@ export const config = {
   history: {
     maxEntries: parseInt(process.env.HISTORY_MAX_ENTRIES || '10000', 10),
     retentionSeconds: parseInt(process.env.HISTORY_RETENTION_SECONDS || '604800', 10),
+    // File-based archival to cold storage (issue #43).
+    archival: {
+      enabled: process.env.FILE_ARCHIVAL_ENABLED === 'true',
+      archiveAfterDays: parseInt(process.env.FILE_ARCHIVE_AFTER_DAYS || '90', 10),
+      retentionDays: parseInt(process.env.FILE_RETENTION_DAYS || '0', 10),
+      coldStorageDir: process.env.FILE_COLD_STORAGE_DIR || './data/archive',
+      intervalMs: parseInt(process.env.FILE_ARCHIVAL_INTERVAL_MS || '86400000', 10),
+    },
   },
 
   security: {

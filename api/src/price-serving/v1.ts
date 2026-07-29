@@ -13,6 +13,7 @@ import { links, withLinks } from './hypermedia';
 import { createLineageForPrice } from '../platform/lineage';
 import { Router, Request, Response } from 'express';
 import { conditionalCache } from './conditional-cache';
+import { createLineageForPrice } from '../platform/lineage';
 import { eventBus } from '../domain-events';
 import complianceRoutes from '../governance/compliance';
 
