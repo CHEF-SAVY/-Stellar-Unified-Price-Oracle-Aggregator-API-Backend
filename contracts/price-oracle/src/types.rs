@@ -1,4 +1,4 @@
-use soroban_sdk::{contracttype, Address, String};
+use soroban_sdk::{contracttype, Address, String, Vec};
 
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -54,18 +54,64 @@ pub struct MultiSigConfig {
 pub enum ProposalAction {
     AddSource(Address, String),     // (source_address, name)
     RemoveSource(Address),
-    SetTrustedAsset(String, u32),   // (asset, 1=trusted 0=untrusted, bool avoided for XDR compat)
+    SetTrustedAsset(String, bool),  // (asset, trusted)
     TransferAdmin(Address),
     SetDeviationThreshold(u32),     // new threshold in basis points
     ResetReputation(Address),       // source address
     AddSigner(Address),
     RemoveSigner(Address),
     SetThreshold(u32),
+    // Governance-specific actions
+    SetAdmin(Address),
+    AddOracleSource(Address, String),
+    RemoveOracleSource(Address),
+    UpdateGovernanceConfig(GovernanceConfig),
+}
+
+// ── Governance types ─────────────────────────────────────────────────────────
+
+#[contracttype]
+#[derive(Clone, Debug)]
+pub struct GovernanceConfig {
+    pub token: Address,
+    pub proposal_threshold: i128,
+    pub voting_period: u64,
+    pub timelock_delay: u64,
+    pub quorum: i128,
+    pub guardian: Address,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum ProposalStatus {
+    Active,
+    Queued,
+    Ready,
+    Executed,
+    Defeated,
+    Cancelled,
 }
 
 #[contracttype]
 #[derive(Clone, Debug)]
-pub struct Proposal {
+pub struct GovernanceProposal {
+    pub id: u32,
+    pub proposer: Address,
+    pub action: ProposalAction,
+    pub description: String,
+    pub votes_for: i128,
+    pub votes_against: i128,
+    pub voting_start: u64,
+    pub voting_end: u64,
+    pub execution_time: u64,
+    pub status: ProposalStatus,
+}
+
+// ── Multi-sig types ──────────────────────────────────────────────────────────
+
+#[contracttype]
+#[derive(Clone, Debug)]
+pub struct MultiSigProposal {
     pub id: u32,
     pub action: ProposalAction,
     pub approvals: Vec<Address>,
@@ -101,5 +147,9 @@ pub enum DataKey {
     // Issue #67 — multi-sig
     MultiSigConfig,
     ProposalCount,
-    Proposal(u32),
+    MultiSigProposal(u32),
+    // Governance
+    GovernanceConfig,
+    GovernanceProposal(u32),
+    Vote(u32, Address),
 }
