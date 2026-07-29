@@ -85,4 +85,11 @@ export const oracleApiBudgetUtilization = new client.Gauge({
   registers: [register],
 });
 
+export const oracleSourceUptimePercent = new client.Gauge({
+  name: 'oracle_source_uptime_percent',
+  help: 'Current uptime percentage per oracle source (0–100)',
+  labelNames: ['source'],
+  registers: [register],
+});
+
 export { register };

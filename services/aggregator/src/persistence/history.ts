@@ -13,7 +13,7 @@ export function ensureDataDir(): void {
 }
 
 /** Whether historical price files should be encrypted at rest (issue #41). */
-function historyEncryptionEnabled(): boolean {
+export function historyEncryptionEnabled(): boolean {
   return config.security.encryption.encryptHistory && isEncryptionConfigured();
 }
 

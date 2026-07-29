@@ -5,7 +5,8 @@ import { PriceAggregator } from './price-aggregation/aggregator';
 import { AggregatedPrice, NormalizedPrice } from './infrastructure/types';
 import { ContractPublisher } from './contract-publishing/publisher';
 import { appendHistoricalPrice } from './persistence/history';
-import { FileArchivalService } from './persistence/file-archival';
+import { appendUptimeSnapshot } from './persistence/uptime-history';
+import { oracleSourceUptimePercent } from './observability/metrics';
 import { DatabaseClient } from './persistence/database';
 import { BaseSource } from './oracle-sources/base';
 import { WebSocketServer } from './infrastructure/ws-server';
@@ -14,6 +15,7 @@ import AlertManager from './observability/alert-manager';
 import { sourceCircuitBreaker } from './price-aggregation/source-circuit-breaker';
 import { eventBus } from './domain-events';
 import { decryptSecret } from './infrastructure/crypto';
+import { getVaultClient } from '@stellar-oracle/vault-client';
 
 // In-process counters surfaced as structured log lines; the API /metrics
 // endpoint (prom-client) collects the canonical Prometheus metrics.
@@ -41,6 +43,8 @@ const alertManager = new AlertManager({
   emailWebhookUrl: process.env.ALERT_EMAIL_WEBHOOK_URL ? decryptSecret(process.env.ALERT_EMAIL_WEBHOOK_URL) : undefined,
   emailRecipients: (process.env.ALERT_EMAIL_RECIPIENTS || '').split(',').map((s) => s.trim()).filter(Boolean),
   sourceDisagreementThresholdPercent: parseFloat(process.env.ALERT_SOURCE_DISAGREEMENT_PERCENT || '5'),
+  slaBreachMaxPerWindow: parseInt(process.env.ALERT_SLA_BREACH_MAX_PER_WINDOW || '10', 10),
+  slaBreachWindowSeconds: parseInt(process.env.ALERT_SLA_BREACH_WINDOW_SECONDS || '300', 10),
 });
 
 let lastAggregated: AggregatedPrice[] = [];
@@ -166,6 +170,12 @@ async function poll(): Promise<AggregatedPrice[]> {
   }
 
   lastAggregated = aggregated;
+
+  for (const source of sources) {
+    appendUptimeSnapshot(source.name, source.health);
+    oracleSourceUptimePercent.set({ source: source.name }, source.health.uptimePercent);
+  }
+
   return aggregated;
 }
 
@@ -173,6 +183,32 @@ async function main(): Promise<void> {
   logger.info('Stellar Price Oracle Aggregator starting...');
   logger.info(`Polling interval: ${config.pollingIntervalMs}ms`);
   logger.info(`Watched assets: ${config.assets.join(', ')}`);
+
+  // Initialize Vault for contract admin key management
+  try {
+    const vault = getVaultClient();
+    await vault.initialize();
+
+    // Load contract admin key from Vault; fall back to env if not present
+    const vaultAdmin = await vault.loadContractAdmin();
+    if (vaultAdmin && !process.env.ADMIN_SECRET_KEY) {
+      process.env.ADMIN_SECRET_KEY = decryptSecret(vaultAdmin.secretKey);
+      logger.info('Loaded contract admin key from Vault');
+    } else if (!vaultAdmin && process.env.ADMIN_SECRET_KEY) {
+      await vault.seedDefaults({
+        contractAdmin: {
+          secretKey: process.env.ADMIN_SECRET_KEY,
+          contractId: config.soroban.contractId,
+          networkPassphrase: config.soroban.networkPassphrase,
+          label: 'default-admin',
+        },
+      });
+      logger.info('Seeded contract admin key into Vault from environment');
+    }
+    logger.info('Vault secrets engine initialized');
+  } catch (err) {
+    logger.warn('Vault not available — using environment-based secrets fallback', err);
+  }
 
   if (!config.soroban.contractId) {
     logger.warn('No contract ID configured — running in dry-run mode');
@@ -201,6 +237,17 @@ async function main(): Promise<void> {
     reflector: new ReflectorSource(),
   };
   pollSources = Object.values(persistentSources);
+
+  // Subscribe to SLA breach events and route to alert manager
+  eventBus.subscribe('sla_breach', (event) => {
+    if (event.type === 'sla_breach') {
+      alertManager.checkSlaBreach(
+        event.payload.source,
+        event.payload.asset,
+        event.payload.elapsedSeconds,
+      );
+    }
+  });
 
   const healthServer = new HealthServer(config.port + 2, () => ({
     sourceHealth: {

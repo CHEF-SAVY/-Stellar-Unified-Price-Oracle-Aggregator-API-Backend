@@ -5,7 +5,8 @@ export type DomainEvent =
   | PriceAggregatedEvent
   | PricePublishedEvent
   | AnomalyDetectedEvent
-  | SourceDegradedEvent;
+  | SourceDegradedEvent
+  | SlaBreachEvent;
 
 export interface PriceFetchedEvent {
   type: 'price_fetched';
@@ -39,6 +40,17 @@ export interface SourceDegradedEvent {
   payload: {
     source: string;
     reason: string;
+  };
+  timestamp: number;
+}
+
+export interface SlaBreachEvent {
+  type: 'sla_breach';
+  payload: {
+    source: string;
+    asset: string;
+    elapsedSeconds: number;
+    thresholdSeconds: number;
   };
   timestamp: number;
 }
