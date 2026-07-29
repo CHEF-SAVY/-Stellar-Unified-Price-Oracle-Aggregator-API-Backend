@@ -15,9 +15,12 @@ import { links, withLinks } from './hypermedia';
 import { Router, Request, Response } from 'express';
 import { conditionalCache } from './conditional-cache';
 import { eventBus } from '../domain-events';
+import complianceRoutes from '../governance/compliance';
 
 const router = Router();
 let pricesCache: HybridCache<any>;
+
+router.use(complianceRoutes);
 
 export function initializeCache(cache: HybridCache<any>): void {
   pricesCache = cache;

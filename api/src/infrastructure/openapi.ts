@@ -31,6 +31,7 @@ const options: swaggerJsdoc.Options = {
       { name: 'Metrics', description: 'Prometheus monitoring' },
       { name: 'Usage', description: 'API usage analytics, reports, and anomaly detection' },
       { name: 'Webhooks', description: 'Webhook registration and delivery for price updates' },
+      { name: 'Compliance', description: 'Audit, data lifecycle, and compliance reporting' },
     ],
     paths: {
       '/api/v1': {
@@ -366,6 +367,65 @@ const options: swaggerJsdoc.Options = {
           tags: ['Webhooks'],
           summary: 'Webhook delivery log',
           responses: { 200: { description: 'Delivery log entries' } },
+        },
+      },
+      '/api/v1/audit': {
+        get: {
+          tags: ['Compliance'],
+          summary: 'Query tamper-evident audit log entries',
+          parameters: [
+            { in: 'query', name: 'eventType', schema: { type: 'string' } },
+            { in: 'query', name: 'actor', schema: { type: 'string' } },
+            { in: 'query', name: 'from', schema: { type: 'string' }, description: 'Start timestamp in nanoseconds' },
+            { in: 'query', name: 'to', schema: { type: 'string' }, description: 'End timestamp in nanoseconds' },
+            { in: 'query', name: 'page', schema: { type: 'integer', default: 1 } },
+          ],
+          responses: { 200: { description: 'Audit log entries with hash chain metadata' } },
+        },
+      },
+      '/api/v1/data/subject/{id}': {
+        delete: {
+          tags: ['Compliance'],
+          summary: 'Delete data associated with a data subject and return a certificate',
+          parameters: [{ in: 'path', name: 'id', required: true, schema: { type: 'string' } }],
+          responses: { 200: { description: 'Deletion certificate' } },
+        },
+      },
+      '/api/v1/data/subject/{id}/export': {
+        get: {
+          tags: ['Compliance'],
+          summary: 'Export data associated with a data subject',
+          parameters: [{ in: 'path', name: 'id', required: true, schema: { type: 'string' } }],
+          responses: { 200: { description: 'Portable subject data export' } },
+        },
+      },
+      '/api/v1/compliance/reports/{framework}': {
+        get: {
+          tags: ['Compliance'],
+          summary: 'Generate SOC 2, GDPR, or MiCA compliance report',
+          parameters: [{ in: 'path', name: 'framework', required: true, schema: { type: 'string', enum: ['soc2', 'gdpr', 'mica'] } }],
+          responses: { 200: { description: 'Compliance report' }, 404: { description: 'Unsupported framework' } },
+        },
+      },
+      '/api/v1/compliance/access-reviews': {
+        get: {
+          tags: ['Compliance'],
+          summary: 'Generate quarterly access control review status',
+          responses: { 200: { description: 'Access review report' } },
+        },
+      },
+      '/api/v1/compliance/dashboard': {
+        get: {
+          tags: ['Compliance'],
+          summary: 'Compliance dashboard metrics',
+          responses: { 200: { description: 'Compliance dashboard state' } },
+        },
+      },
+      '/api/v1/compliance/regulatory-changes': {
+        get: {
+          tags: ['Compliance'],
+          summary: 'Regulatory change monitoring status',
+          responses: { 200: { description: 'Regulatory changes and affected controls' } },
         },
       },
     },
