@@ -11,6 +11,7 @@
     "test:api": "cd api && npm test",
     "test:contract": "cd contracts/price-oracle && cargo test",
     "test:backend": "npm run test:aggregator && npm run test:api",
+    "plugin:test": "node scripts/plugin-test.mjs",
     "cost:analyze": "node scripts/analyze-infrastructure-costs.mjs",
     "cost:check": "node scripts/analyze-infrastructure-costs.mjs --check",
     "install:all": "cd services/aggregator && npm install && cd ../../api && npm install",
