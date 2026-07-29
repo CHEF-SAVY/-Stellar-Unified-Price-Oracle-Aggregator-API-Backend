@@ -5,6 +5,8 @@ import { PriceAggregator } from './price-aggregation/aggregator';
 import { AggregatedPrice, NormalizedPrice } from './infrastructure/types';
 import { ContractPublisher } from './contract-publishing/publisher';
 import { appendHistoricalPrice } from './persistence/history';
+import { appendUptimeSnapshot } from './persistence/uptime-history';
+import { oracleSourceUptimePercent } from './observability/metrics';
 import { DatabaseClient } from './persistence/database';
 import { BaseSource } from './oracle-sources/base';
 import { WebSocketServer } from './infrastructure/ws-server';
@@ -39,6 +41,8 @@ const alertManager = new AlertManager({
   emailWebhookUrl: process.env.ALERT_EMAIL_WEBHOOK_URL ? decryptSecret(process.env.ALERT_EMAIL_WEBHOOK_URL) : undefined,
   emailRecipients: (process.env.ALERT_EMAIL_RECIPIENTS || '').split(',').map((s) => s.trim()).filter(Boolean),
   sourceDisagreementThresholdPercent: parseFloat(process.env.ALERT_SOURCE_DISAGREEMENT_PERCENT || '5'),
+  slaBreachMaxPerWindow: parseInt(process.env.ALERT_SLA_BREACH_MAX_PER_WINDOW || '10', 10),
+  slaBreachWindowSeconds: parseInt(process.env.ALERT_SLA_BREACH_WINDOW_SECONDS || '300', 10),
 });
 
 let lastAggregated: AggregatedPrice[] = [];
@@ -164,6 +168,12 @@ async function poll(): Promise<AggregatedPrice[]> {
   }
 
   lastAggregated = aggregated;
+
+  for (const source of sources) {
+    appendUptimeSnapshot(source.name, source.health);
+    oracleSourceUptimePercent.set({ source: source.name }, source.health.uptimePercent);
+  }
+
   return aggregated;
 }
 
@@ -199,6 +209,17 @@ async function main(): Promise<void> {
     reflector: new ReflectorSource(),
   };
   pollSources = Object.values(persistentSources);
+
+  // Subscribe to SLA breach events and route to alert manager
+  eventBus.subscribe('sla_breach', (event) => {
+    if (event.type === 'sla_breach') {
+      alertManager.checkSlaBreach(
+        event.payload.source,
+        event.payload.asset,
+        event.payload.elapsedSeconds,
+      );
+    }
+  });
 
   const healthServer = new HealthServer(config.port + 2, () => ({
     sourceHealth: {
