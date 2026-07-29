@@ -21,4 +21,15 @@ pub enum OracleError {
     InvalidThreshold = 13,
     ThresholdNotMet = 14,
     MultiSigNotInitialized = 15,
+    // Governance errors
+    GovernanceNotInitialized = 16,
+    GovernanceAlreadyInitialized = 17,
+    InsufficientVotingPower = 18,
+    ProposalDefeated = 19,
+    ProposalCancelled = 20,
+    VotingNotActive = 21,
+    AlreadyVoted = 22,
+    TimeLockNotElapsed = 23,
+    GuardianOnly = 24,
+    InvalidGovernanceConfig = 25,
 }

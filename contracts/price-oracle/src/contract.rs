@@ -3,7 +3,7 @@ use soroban_sdk::{contract, contractimpl, Address, Bytes, Env, String, Vec};
 use crate::errors::OracleError;
 use crate::merkle;
 use crate::storage;
-use crate::types::{AssetPrice, BatchPriceEntry, MerkleProof, MultiSigConfig, Proposal, ProposalAction, PriceDataPoint, SourceReputation};
+use crate::types::{AssetPrice, BatchPriceEntry, MerkleProof, MultiSigConfig, MultiSigProposal, ProposalAction, PriceDataPoint, SourceReputation};
 
 // Basis points threshold below which a submission is counted as accurate for reputation.
 const REPUTATION_ACCURACY_THRESHOLD_BPS: u128 = 2000; // 20%
@@ -215,7 +215,7 @@ impl PriceOracleContract {
         let mut approvals: Vec<Address> = Vec::new(&env);
         approvals.push_back(proposer.clone());
 
-        let proposal = Proposal {
+        let proposal = MultiSigProposal {
             id,
             action,
             approvals,
@@ -224,7 +224,7 @@ impl PriceOracleContract {
             proposer,
         };
 
-        storage::set_proposal(&env, &proposal);
+        storage::set_multisig_proposal(&env, &proposal);
         storage::set_proposal_count(&env, id + 1);
 
         Ok(id)
@@ -244,7 +244,7 @@ impl PriceOracleContract {
             return Err(OracleError::NotASigner);
         }
 
-        let mut proposal = storage::get_proposal(&env, proposal_id)
+        let mut proposal = storage::get_multisig_proposal(&env, proposal_id)
             .ok_or(OracleError::ProposalNotFound)?;
 
         if proposal.executed == 1 {
@@ -256,7 +256,7 @@ impl PriceOracleContract {
         }
 
         proposal.approvals.push_back(signer);
-        storage::set_proposal(&env, &proposal);
+        storage::set_multisig_proposal(&env, &proposal);
         Ok(())
     }
 
@@ -274,7 +274,7 @@ impl PriceOracleContract {
             return Err(OracleError::NotASigner);
         }
 
-        let mut proposal = storage::get_proposal(&env, proposal_id)
+        let mut proposal = storage::get_multisig_proposal(&env, proposal_id)
             .ok_or(OracleError::ProposalNotFound)?;
 
         if proposal.executed == 1 {
@@ -288,12 +288,12 @@ impl PriceOracleContract {
         apply_proposal_action(&env, &proposal.action)?;
 
         proposal.executed = 1;
-        storage::set_proposal(&env, &proposal);
+        storage::set_multisig_proposal(&env, &proposal);
         Ok(())
     }
 
-    pub fn get_proposal(env: Env, proposal_id: u32) -> Option<Proposal> {
-        storage::get_proposal(&env, proposal_id)
+    pub fn get_proposal(env: Env, proposal_id: u32) -> Option<MultiSigProposal> {
+        storage::get_multisig_proposal(&env, proposal_id)
     }
 
     pub fn get_multisig_config(env: Env) -> Option<MultiSigConfig> {
@@ -492,7 +492,7 @@ fn apply_proposal_action(env: &Env, action: &ProposalAction) -> Result<(), Oracl
             storage::remove_source(env, source);
         }
         ProposalAction::SetTrustedAsset(asset, trusted) => {
-            storage::set_trusted_asset(env, asset, *trusted != 0);
+            storage::set_trusted_asset(env, asset, *trusted);
         }
         ProposalAction::TransferAdmin(new_admin) => {
             storage::set_admin(env, new_admin);
@@ -531,6 +531,7 @@ fn apply_proposal_action(env: &Env, action: &ProposalAction) -> Result<(), Oracl
                 storage::set_multisig_config(env, &config);
             }
         }
+        _ => {}
     }
     Ok(())
 }
