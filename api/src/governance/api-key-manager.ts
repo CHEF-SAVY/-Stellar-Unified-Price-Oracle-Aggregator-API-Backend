@@ -2,6 +2,7 @@ import crypto from 'crypto';
 import { logger } from '../observability/logger';
 import type { Role } from './rbac';
 import { decryptSecret } from './crypto';
+import type { ApiKeyEntry } from '@stellar-oracle/vault-client';
 
 export type KeyTier = 'free' | 'pro' | 'enterprise' | 'admin';
 
@@ -214,6 +215,47 @@ export class ApiKeyManager {
       logger.info(`Deleted API key: ${metadata!.keyPrefix}...`);
     }
     return result;
+  }
+
+  /** Export all keys in Vault-compatible format for persistence.
+   *  Note: plaintext keys are never stored after generation;
+   *  keyPrefix is used for display/identification purposes. */
+  exportKeysForVault(): Record<string, ApiKeyEntry> {
+    const result: Record<string, ApiKeyEntry> = {};
+    for (const [hash, meta] of this.keys) {
+      result[hash] = {
+        keyHash: meta.keyHash,
+        keyPrefix: meta.keyPrefix,
+        key: '',
+        tier: meta.tier,
+        role: meta.role,
+        rateLimitPerMin: meta.rateLimitPerMin,
+        description: meta.description,
+        createdAt: meta.createdAt,
+        isActive: meta.isActive,
+      };
+    }
+    return result;
+  }
+
+  /** Load keys from Vault into the in-memory store. */
+  loadKeysFromVault(vaultKeys: Record<string, ApiKeyEntry>): void {
+    for (const [, entry] of Object.entries(vaultKeys)) {
+      const metadata: ApiKeyMetadata = {
+        keyHash: entry.keyHash,
+        keyPrefix: entry.keyPrefix || entry.key.substring(0, 12),
+        createdAt: entry.createdAt,
+        lastUsed: null,
+        requestCount: 0,
+        isActive: entry.isActive,
+        rateLimitPerMin: entry.rateLimitPerMin,
+        tier: entry.tier as KeyTier,
+        role: entry.role as Role,
+        description: entry.description,
+      };
+      this.keys.set(entry.keyHash, metadata);
+    }
+    logger.info(`Loaded ${Object.keys(vaultKeys).length} API keys from Vault`);
   }
 
   hashKey(key: string): string {

@@ -1,6 +1,7 @@
 import { randomUUID } from 'crypto';
 import { config } from '../infrastructure/config';
 import { logger } from '../observability/logger';
+import { getVaultClient } from '@stellar-oracle/vault-client';
 
 export type WebhookTriggerType = 'threshold' | 'interval';
 
@@ -59,7 +60,28 @@ class WebhookService {
       createdAt: Date.now(),
     };
     this.webhooks.set(webhook.id, webhook);
+
+    // Persist webhook secret to Vault asynchronously
+    this.persistWebhookToVault(webhook).catch((err) => {
+      logger.warn(`Failed to persist webhook ${webhook.id} to Vault`, err);
+    });
+
     return webhook;
+  }
+
+  private async persistWebhookToVault(webhook: WebhookRegistration): Promise<void> {
+    try {
+      const vault = getVaultClient();
+      if (!vault.isInitialized()) return;
+      await vault.saveWebhookSecret(webhook.apiKeyPrefix, {
+        webhookId: webhook.id,
+        secret: webhook.secret,
+        apiKeyPrefix: webhook.apiKeyPrefix,
+        createdAt: webhook.createdAt,
+      });
+    } catch {
+      // Vault persistence is best-effort for webhooks
+    }
   }
 
   list(apiKeyPrefix?: string): WebhookRegistration[] {
@@ -72,7 +94,24 @@ class WebhookService {
   }
 
   remove(id: string): boolean {
-    return this.webhooks.delete(id);
+    const webhook = this.webhooks.get(id);
+    const deleted = this.webhooks.delete(id);
+    if (deleted && webhook) {
+      this.removeWebhookFromVault(webhook).catch((err) => {
+        logger.warn(`Failed to remove webhook ${id} from Vault`, err);
+      });
+    }
+    return deleted;
+  }
+
+  private async removeWebhookFromVault(webhook: WebhookRegistration): Promise<void> {
+    try {
+      const vault = getVaultClient();
+      if (!vault.isInitialized()) return;
+      await vault.deleteWebhookSecret(webhook.apiKeyPrefix, webhook.id);
+    } catch {
+      // Vault cleanup is best-effort
+    }
   }
 
   deliveries(webhookId?: string): WebhookDeliveryLog[] {
