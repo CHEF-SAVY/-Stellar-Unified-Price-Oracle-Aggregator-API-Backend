@@ -10,6 +10,7 @@ import { config } from '../infrastructure/config';
 import { logger } from '../observability/logger';
 import { AggregatedPrice } from '../infrastructure/types';
 import { MerkleTree, BatchPriceEntry } from '../infrastructure/merkle';
+import { SubmissionRetryQueue } from './retry-queue';
 
 interface ContractCallLog {
   txHash: string;
@@ -61,12 +62,36 @@ export class ContractPublisher {
   private keypair: Keypair;
   private contractId: string;
   private networkPassphrase: string;
+  private retryQueue: SubmissionRetryQueue;
 
   constructor() {
     this.server = new SorobanRpc.Server(config.soroban.rpcUrl);
     this.keypair = Keypair.fromSecret(config.soroban.adminSecret);
     this.contractId = config.soroban.contractId;
     this.networkPassphrase = config.soroban.networkPassphrase;
+
+    this.retryQueue = new SubmissionRetryQueue({
+      maxRetries: 5,
+      baseBackoffMs: 1000,
+      maxBackoffMs: 60000,
+    });
+
+    this.retryQueue.on('retry', (data) => {
+      logger.info(`[Publisher] Retrying submission for ${data.submission.asset}`, {
+        attemptCount: data.attemptCount,
+        nextRetryKey: data.key,
+      });
+    });
+
+    this.retryQueue.on('failure', (data) => {
+      logger.error(`[Publisher] Submission permanently failed for ${data.submission.asset}`, {
+        key: data.key,
+        reason: data.reason,
+        attemptCount: data.submission.attemptCount,
+      });
+    });
+
+    this.retryQueue.start();
   }
 
   // ── Individual submission (unchanged) ──────────────────────────────────────
@@ -169,6 +194,14 @@ export class ContractPublisher {
         timestamp: Math.floor(Date.now() / 1000),
       });
       logger.error(`[Contract] Failed to submit ${asset}: ${errMsg}`, { txHash });
+
+      this.retryQueue.enqueue({
+        asset,
+        price,
+        decimals,
+        timestamp,
+      });
+
       return null;
     }
   }
@@ -212,6 +245,29 @@ export class ContractPublisher {
         price.timestamp,
       );
     }
+  }
+
+  processRetryQueue(): void {
+    const items = this.retryQueue.getQueueItems();
+    for (const item of items) {
+      this.submitPrice(item.asset, item.price, item.decimals, item.timestamp)
+        .then((result) => {
+          if (result) {
+            this.retryQueue.remove(`${item.asset}:${item.timestamp}`);
+          }
+        })
+        .catch((err) => {
+          logger.error(`[Publisher] Error processing retry for ${item.asset}:`, err);
+        });
+    }
+  }
+
+  getRetryQueueMetrics() {
+    return this.retryQueue.getMetrics();
+  }
+
+  getRetryQueueSize(): number {
+    return this.retryQueue.getQueueSize();
   }
 
   // ── Internal helpers ────────────────────────────────────────────────────────

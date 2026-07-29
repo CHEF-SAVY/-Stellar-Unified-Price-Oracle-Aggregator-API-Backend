@@ -2,6 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import { AggregatedPrice } from '../infrastructure/types';
 import { logger } from './logger';
+import { WebSocketServer } from '../infrastructure/ws-server';
 
 export interface AlertThresholds {
   asset: string;
@@ -174,6 +175,11 @@ class AlertManager {
 
     if (this.config.enableFileLog && this.config.alertHistoryPath) {
       this.logToFile(alert);
+    }
+
+    const wss = WebSocketServer.getInstance();
+    if (wss) {
+      wss.broadcastAlert(alert);
     }
 
     if (this.config.webhookUrl) {

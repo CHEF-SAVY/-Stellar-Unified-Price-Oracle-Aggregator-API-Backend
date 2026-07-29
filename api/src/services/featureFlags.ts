@@ -202,11 +202,10 @@ export function recordFlagError(flagKey: string): void {
   if (errorRate >= threshold && !state.autoDisabled) {
     state.autoDisabled = true;
     state.disabledAt = new Date();
-    defaultLogger.error(`Feature flag "${flagKey}" auto-disabled due to high error rate`, {
-      flagKey,
-      errorRate: errorRate.toFixed(3),
-      threshold,
-    });
+    defaultLogger.error(
+      `Feature flag "${flagKey}" auto-disabled due to high error rate`,
+      { flagKey, errorRate: errorRate.toFixed(3), threshold }
+    );
   }
 }
 

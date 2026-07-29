@@ -22,7 +22,7 @@
  * └─────────────────────────────────────────┘
  */
 
-import { randomUUID } from 'crypto';
+import { createHash, randomUUID } from 'crypto';
 import { logger as defaultLogger } from '../observability/logger';
 
 // ---------------------------------------------------------------------------
