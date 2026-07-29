@@ -35,6 +35,7 @@ function nextSeq(): number {
 export class PriceWebSocketServer {
   private wss: WsServer | null = null;
   private port: number;
+  private guard: WsUpgradeGuard;
   private clients: Set<WebSocket> = new Set();
   private subscriptions: Map<WebSocket, Set<string>> = new Map();
   private cache: HybridCache<any> | null = null;
@@ -44,11 +45,11 @@ export class PriceWebSocketServer {
 
   constructor(port: number) {
     this.port = port;
+    this.guard = new WsUpgradeGuard();
   }
 
   start(): void {
-    const guard = new WsUpgradeGuard();
-    this.wss = new WsServer({ port: this.port, clientTracking: false, verifyClient: guard.verifyClient });
+    this.wss = new WsServer({ port: this.port, clientTracking: false, verifyClient: this.guard.verifyClient });
 
     this.wss.on('connection', (ws: WebSocket, req: IncomingMessage) => {
       const auth = validateWebSocketApiKey(req);
@@ -57,6 +58,9 @@ export class PriceWebSocketServer {
         ws.close(1008, auth.error || 'Unauthorized');
         return;
       }
+
+      const ip = this.clientIp(req);
+      this.guard.onConnect(ip);
 
       const connectedAt = Date.now();
       this.clients.add(ws);
@@ -78,6 +82,7 @@ export class PriceWebSocketServer {
       });
 
       ws.on('close', () => {
+        this.guard.onDisconnect(ip);
         this.clients.delete(ws);
         this.subscriptions.delete(ws);
         wsConnectionsActive.dec();
@@ -103,7 +108,7 @@ export class PriceWebSocketServer {
 
     logger.info(`WebSocket server on port ${this.port}`);
 
-    this.sweepTimer = setInterval(() => guard.sweep(), config.ws.rateLimitWindowMs);
+    this.sweepTimer = setInterval(() => this.guard.sweep(), config.ws.rateLimitWindowMs);
   }
 
   private handleMessage(ws: WebSocket, msg: unknown): void {
@@ -256,6 +261,14 @@ export class PriceWebSocketServer {
         logger.warn(`Cache invalidation failed for pattern ${pattern}: ${err}`);
       });
     });
+  }
+
+  private clientIp(req: IncomingMessage): string {
+    const forwarded = req.headers['x-forwarded-for'];
+    if (typeof forwarded === 'string' && forwarded.length > 0) {
+      return forwarded.split(',')[0].trim();
+    }
+    return req.socket.remoteAddress || 'unknown';
   }
 
   stop(): void {
