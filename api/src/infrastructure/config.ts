@@ -18,6 +18,11 @@ export const config = {
   logLevel: process.env.LOG_LEVEL || 'info',
   rateLimitWindowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS || '60000', 10),
   rateLimitMax: parseInt(process.env.RATE_LIMIT_MAX || '100', 10),
+  rateLimitRedisUrls: (process.env.RATE_LIMIT_REDIS_URLS || process.env.REDIS_URL || '')
+    .split(',')
+    .map((url) => url.trim())
+    .filter(Boolean),
+  geoIpDatabasePath: process.env.GEOIP_DATABASE_PATH || '',
   cacheTtlMs: parseInt(process.env.CACHE_TTL_MS || '15000', 10),
   redisUrl: process.env.REDIS_URL,
   priceCacheTtl: parseInt(process.env.PRICE_CACHE_TTL_MS || '15000', 10),

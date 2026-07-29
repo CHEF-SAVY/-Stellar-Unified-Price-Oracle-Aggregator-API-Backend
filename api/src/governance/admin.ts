@@ -2,7 +2,6 @@ import { Router, Request, Response } from 'express';
 import { apiKeyManager, TIER_RATE_LIMITS, KeyTier } from './api-key-manager';
 import { corsManager } from './cors-manager';
 import { adminAuthMiddleware } from './auth';
-import { requireRole, ROLES, ROLE_PERMISSIONS } from './rbac';
 import { logger } from '../observability/logger';
 import { auditLog } from './audit-logger';
 import { getDb, isDbAvailable } from '../infrastructure/database';

@@ -194,6 +194,26 @@ export const apiCallsByEndpoint = new client.Counter({
 });
 register.registerMetric(apiCallsByEndpoint);
 
+export const rateLimitDecisionsTotal = new client.Counter({
+  name: 'rate_limit_decisions_total',
+  help: 'Rate limit decisions by layer, tenant, endpoint, and result',
+  labelNames: ['layer', 'tenant', 'endpoint', 'result'],
+});
+register.registerMetric(rateLimitDecisionsTotal);
+
+export const rateLimitCounterSize = new client.Gauge({
+  name: 'rate_limit_counter_size',
+  help: 'Number of active local rate limit counters',
+});
+register.registerMetric(rateLimitCounterSize);
+
+export const rateLimitRedisLatency = new client.Histogram({
+  name: 'rate_limit_redis_latency_seconds',
+  help: 'Redis latency for distributed rate limit counter updates',
+  buckets: [0.0005, 0.001, 0.0025, 0.005, 0.01, 0.025, 0.05],
+});
+register.registerMetric(rateLimitRedisLatency);
+
 export function metricsMiddleware(req: Request, res: Response, next: NextFunction): void {
   const end = httpRequestDuration.startTimer();
   res.on('finish', () => {

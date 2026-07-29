@@ -9,12 +9,11 @@ import { readAssetPrices, readPriceHistory, readPriceHistoryCursor } from './pri
 import { buildCursorMeta, applyOffsetPagination } from './pagination';
 import { HybridCache } from './cache';
 import { cacheHitTotal, cacheMissTotal, lastPriceTimestamp, priceQueriesTotal } from '../observability/metrics';
-import { issueWsCsrfToken, isCsrfEnabled } from '../infrastructure/csrf';
-import { config } from '../infrastructure/config';
 import { links, withLinks } from './hypermedia';
 import { Router, Request, Response } from 'express';
 import { conditionalCache } from './conditional-cache';
 import { eventBus } from '../domain-events';
+import { createLineageForPrice } from '../platform/lineage';
 
 const router = Router();
 let pricesCache: HybridCache<any>;
@@ -98,8 +97,19 @@ router.get('/prices', async (req: Request, res: Response) => {
     pagination,
   };
 
-  await pricesCache.set(cacheKey, aggregated, 'prices');
-  res.json({ success: true, data: withLinks(aggregated, links.prices()) });
+  const data = withLinks(
+    {
+      ...aggregated,
+      prices: aggregated.prices.map((price) => ({
+        ...price,
+        lineage: createLineageForPrice(price, '/api/v1'),
+      })),
+    },
+    links.prices(),
+  );
+
+  await pricesCache.set(cacheKey, data, 'prices');
+  res.json({ success: true, data });
 });
 
 router.get('/prices/:asset', async (req: Request, res: Response) => {
@@ -135,8 +145,16 @@ router.get('/prices/:asset', async (req: Request, res: Response) => {
 
   priceQueriesTotal.inc({ asset });
   lastPriceTimestamp.set({ asset }, price.timestamp);
-  await pricesCache.set(cacheKey, price, 'price');
-  res.json({ success: true, data: withLinks(price, links.asset(asset)) });
+  const data = withLinks(
+    {
+      ...price,
+      lineage: createLineageForPrice(price, '/api/v1'),
+    },
+    links.asset(asset),
+  );
+
+  await pricesCache.set(cacheKey, data, 'price');
+  res.json({ success: true, data });
 });
 
 // GET /history/:asset — cursor-paginated time-series

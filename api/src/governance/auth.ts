@@ -153,7 +153,6 @@ export function adminAuthMiddleware(_adminKeyPrefix: string) {
 
 export function optionalAuthMiddleware(req: Request, res: Response, next: NextFunction): void {
   const apiKey = extractApiKey(req);
-  const ctx = requestContext(req);
 
   if (!apiKey) {
     next();

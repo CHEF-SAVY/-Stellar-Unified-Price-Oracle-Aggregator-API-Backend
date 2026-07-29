@@ -19,7 +19,7 @@
  */
 
 import { createHash } from 'crypto';
-import { logger as defaultLogger } from '../middleware/logger';
+import { logger as defaultLogger } from '../observability/logger';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -202,10 +202,11 @@ export function recordFlagError(flagKey: string): void {
   if (errorRate >= threshold && !state.autoDisabled) {
     state.autoDisabled = true;
     state.disabledAt = new Date();
-    defaultLogger.error(
-      { flagKey, errorRate: errorRate.toFixed(3), threshold },
-      `Feature flag "${flagKey}" auto-disabled due to high error rate`
-    );
+    defaultLogger.error(`Feature flag "${flagKey}" auto-disabled due to high error rate`, {
+      flagKey,
+      errorRate: errorRate.toFixed(3),
+      threshold,
+    });
   }
 }
 
@@ -246,6 +247,6 @@ export function resetFlag(flagKey: string): boolean {
   state.disabledAt = undefined;
   state.calls = 0;
   state.errors = 0;
-  defaultLogger.info({ flagKey }, `Feature flag "${flagKey}" manually reset`);
+  defaultLogger.info(`Feature flag "${flagKey}" manually reset`, { flagKey });
   return true;
 }

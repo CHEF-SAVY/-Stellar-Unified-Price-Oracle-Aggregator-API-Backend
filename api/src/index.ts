@@ -2,7 +2,6 @@ import express from 'express';
 import path from 'path';
 import cors from 'cors';
 import helmet from 'helmet';
-import rateLimit from 'express-rate-limit';
 import swaggerUi from 'swagger-ui-express';
 import { config } from './infrastructure/config';
 import { corsManager } from './governance/cors-manager';
@@ -12,7 +11,7 @@ import { requestIdMiddleware } from './observability/request-id';
 import { errorHandler, notFoundHandler } from './infrastructure/error';
 import { metricsMiddleware, metricsHandler } from './observability/metrics';
 import { authMiddleware, optionalAuthMiddleware } from './governance/auth';
-import { sanitizeInputs, cspHeaders } from './governance/sanitization';
+import { sanitizeInputs } from './governance/sanitization';
 import { httpsRedirect, hstsHeaders } from './infrastructure/https';
 import { compressionMiddleware } from './infrastructure/compression';
 import { usageTrackingMiddleware } from './governance/usage-tracking';
@@ -30,11 +29,12 @@ import { BackupService } from './infrastructure/backup';
 import { setDatabase } from './price-serving/price-store';
 import { initializeTracing } from './observability/tracing';
 import adminRoutes from './governance/admin';
-import statusRoutes from './observability/status';
 import sandboxRoutes, { initializeSandboxCache } from './routes/sandbox';
+import featureFlagRoutes from './routes/featureFlags';
+import eventRoutes from './routes/events';
+import platformRoutes from './platform/routes';
+import { distributedRateLimiter } from './platform/rate-limiter';
 import { uptimeTracker } from './observability/uptime-tracker';
-import { AppError } from './infrastructure/app-error';
-import { ErrorCode } from './infrastructure/catalog';
 
 // Initialize distributed tracing
 initializeTracing(config.tracing);
@@ -121,24 +121,7 @@ app.use(requestIdMiddleware);
 app.use(requestLogger);
 app.use(metricsMiddleware);
 app.use(usageTrackingMiddleware);
-app.use(
-  rateLimit({
-    windowMs: config.rateLimitWindowMs,
-    max: config.rateLimitMax,
-    standardHeaders: true,
-    legacyHeaders: false,
-    skip: (req) => req.path === '/metrics',
-    handler: (req, res) => {
-      const error = new AppError(
-        ErrorCode.RATE_LIMITED,
-        'Too many requests. Please try again later.',
-        undefined,
-        req.path,
-      );
-      res.status(error.status).json(error.toResponseObject());
-    },
-  }),
-);
+app.use(distributedRateLimiter);
 
 // Apply authentication to price endpoints
 app.use('/api/v1/prices', authMiddleware);
@@ -154,6 +137,7 @@ app.use('/api/v2/health', optionalAuthMiddleware);
 
 // Routes — v1 tagged as deprecated, v2 is current
 app.use('/api/v1', v1DeprecationHeaders, v1Routes);
+app.use('/api/v1', v1DeprecationHeaders, platformRoutes);
 app.use('/api/v1/sandbox', sandboxRoutes);
 app.use('/api/v1/admin', adminRoutes);
 app.use('/api/v2', v2Headers, v2Routes);
@@ -170,6 +154,7 @@ app.get('/metrics', metricsHandler);
 
 // Developer portal: API explorer, key management, usage/billing UI
 app.use('/portal', express.static(path.join(__dirname, '..', 'public', 'portal')));
+app.use('/docs/marketplace', express.static(path.join(__dirname, '..', '..', 'docs', 'marketplace')));
 
 app.use(notFoundHandler);
 app.use(errorHandler);
