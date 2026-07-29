@@ -1,6 +1,7 @@
 import crypto from 'crypto';
 import { logger } from '../observability/logger';
 import type { Role } from './rbac';
+import { decryptSecret } from './crypto';
 
 export type KeyTier = 'free' | 'pro' | 'enterprise' | 'admin';
 
@@ -225,7 +226,7 @@ export class ApiKeyManager {
   }
 
   private loadKeysFromEnv(): void {
-    const envKeys = process.env.API_KEYS;
+    const envKeys = process.env.API_KEYS ? decryptSecret(process.env.API_KEYS) : undefined;
     if (!envKeys) {
       if (this.keys.size === 0) {
         const adminKey = this.generateKey(TIER_RATE_LIMITS.admin, 'Default admin key', 'admin', 'admin');

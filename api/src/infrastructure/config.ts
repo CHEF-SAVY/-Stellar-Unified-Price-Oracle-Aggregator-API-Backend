@@ -4,10 +4,20 @@ import { decryptSecret } from '../governance/crypto';
 
 dotenv.config({ path: path.resolve(__dirname, '../../.env') });
 
+export function secretEnv(name: string, fallback = ''): string {
+  const value = process.env[name];
+  return value ? decryptSecret(value) : fallback;
+}
+
+export function optionalSecretEnv(name: string): string | undefined {
+  const value = process.env[name];
+  return value ? decryptSecret(value) : undefined;
+}
+
 export const config = {
   sandbox: {
     enabled: process.env.SANDBOX_ENABLED === 'true',
-    resetToken: process.env.SANDBOX_RESET_TOKEN || '',
+    resetToken: secretEnv('SANDBOX_RESET_TOKEN'),
   },
   port: parseInt(process.env.API_PORT || '3000', 10),
   wsPort: parseInt(process.env.WS_PORT || '3001', 10),
@@ -24,13 +34,13 @@ export const config = {
     .filter(Boolean),
   geoIpDatabasePath: process.env.GEOIP_DATABASE_PATH || '',
   cacheTtlMs: parseInt(process.env.CACHE_TTL_MS || '15000', 10),
-  redisUrl: process.env.REDIS_URL,
+  redisUrl: optionalSecretEnv('REDIS_URL'),
   priceCacheTtl: parseInt(process.env.PRICE_CACHE_TTL_MS || '15000', 10),
   historyCacheTtl: parseInt(process.env.HISTORY_CACHE_TTL_MS || '60000', 10),
   sourcesCacheTtl: parseInt(process.env.SOURCES_CACHE_TTL_MS || '300000', 10),
   healthCacheTtl: parseInt(process.env.HEALTH_CACHE_TTL_MS || '30000', 10),
   // Sensitive: decrypted at rest if stored as an `enc:` payload (issue #41).
-  databaseUrl: process.env.DATABASE_URL ? decryptSecret(process.env.DATABASE_URL) : undefined,
+  databaseUrl: optionalSecretEnv('DATABASE_URL'),
   // TimescaleDB hypertable support (issue #42).
   useTimescale: process.env.USE_TIMESCALEDB !== 'false',
   // Connection pooling, retry and circuit breaker (issue #44).
@@ -82,11 +92,11 @@ export const config = {
       .map((o) => o.trim())
       .filter(Boolean),
     requireOrigin: process.env.WS_REQUIRE_ORIGIN !== 'false',
-    csrfSecret: process.env.WS_CSRF_SECRET || '',
+    csrfSecret: secretEnv('WS_CSRF_SECRET'),
     csrfTtlMs: parseInt(process.env.WS_CSRF_TTL_MS || '300000', 10),
     rateLimitMax: parseInt(process.env.WS_RATE_LIMIT_MAX || '20', 10),
     rateLimitWindowMs: parseInt(process.env.WS_RATE_LIMIT_WINDOW_MS || '60000', 10),
-    hmacSecret: process.env.WS_HMAC_SECRET || '',
+    hmacSecret: secretEnv('WS_HMAC_SECRET'),
   },
   // Encryption at rest for sensitive config + historical data (issue #41).
   encryption: {
@@ -103,7 +113,7 @@ export const config = {
     enabled: process.env.BACKUP_ENABLED === 'true',
     dir: process.env.BACKUP_DIR || './data/backups',
     // 64-char hex key; if omitted backups are stored unencrypted
-    encryptionKeyHex: process.env.BACKUP_ENCRYPTION_KEY || '',
+    encryptionKeyHex: secretEnv('BACKUP_ENCRYPTION_KEY'),
   },
   consistency: {
     enabled: process.env.CONSISTENCY_CHECK_ENABLED !== 'false',

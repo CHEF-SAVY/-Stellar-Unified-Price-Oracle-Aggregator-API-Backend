@@ -2,6 +2,7 @@ import type { IncomingMessage } from 'http';
 import { config } from './config';
 import { logger } from '../observability/logger';
 import { verifyWsCsrfToken, isCsrfEnabled } from './csrf';
+import { verifyWsSignature } from '../governance/ws-signing';
 
 /**
  * Validates WebSocket upgrade requests before a connection is accepted
@@ -43,6 +44,13 @@ export class WsUpgradeGuard {
     if (!this.checkCsrf(info.req)) {
       this.deny(ip, origin, 'csrf');
       cb(false, 403, 'Invalid or missing CSRF token');
+      return;
+    }
+
+    const sigCheck = verifyWsSignature(info.req, config.ws.hmacSecret);
+    if (!sigCheck.valid) {
+      this.deny(ip, origin, 'hmac');
+      cb(false, 403, sigCheck.error || 'Invalid WebSocket signature');
       return;
     }
 

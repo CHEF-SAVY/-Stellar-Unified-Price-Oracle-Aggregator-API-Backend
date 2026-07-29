@@ -4,9 +4,9 @@ import { logger } from '../observability/logger';
 import { validateWebSocketApiKey } from '../governance/auth';
 import { HybridCache } from '../price-serving/cache';
 import { validateWsAssets } from '../governance/sanitization';
-import { verifyWsSignature } from '../governance/ws-signing';
 import { webhookService } from '../webhooks/webhook-service';
 import { config } from './config';
+import { WsUpgradeGuard } from './upgrade-guard';
 import {
   wsConnectionsActive,
   wsConnectionsTotal,
@@ -47,20 +47,14 @@ export class PriceWebSocketServer {
   }
 
   start(): void {
-    this.wss = new WsServer({ port: this.port, clientTracking: false });
+    const guard = new WsUpgradeGuard();
+    this.wss = new WsServer({ port: this.port, clientTracking: false, verifyClient: guard.verifyClient });
 
     this.wss.on('connection', (ws: WebSocket, req: IncomingMessage) => {
       const auth = validateWebSocketApiKey(req);
       if (!auth.valid) {
         ws.send(JSON.stringify({ type: 'error', code: 'UNAUTHORIZED', message: auth.error }));
         ws.close(1008, auth.error || 'Unauthorized');
-        return;
-      }
-
-      const sigCheck = verifyWsSignature(req, config.ws.hmacSecret);
-      if (!sigCheck.valid) {
-        ws.send(JSON.stringify({ type: 'error', code: 'SIGNATURE_INVALID', message: sigCheck.error }));
-        ws.close(1008, sigCheck.error || 'Invalid signature');
         return;
       }
 
@@ -108,6 +102,8 @@ export class PriceWebSocketServer {
     });
 
     logger.info(`WebSocket server on port ${this.port}`);
+
+    this.sweepTimer = setInterval(() => guard.sweep(), config.ws.rateLimitWindowMs);
   }
 
   private handleMessage(ws: WebSocket, msg: unknown): void {
