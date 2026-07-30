@@ -13,10 +13,9 @@ import { links, withLinks } from './hypermedia';
 import { createLineageForPrice } from '../platform/lineage';
 import { Router, Request, Response } from 'express';
 import { conditionalCache } from './conditional-cache';
-import { createLineageForPrice } from '../platform/lineage';
 import { eventBus } from '../domain-events';
 import complianceRoutes from '../governance/compliance';
-import { createLineageForPrice } from '../platform/lineage';
+import { issueWsCsrfToken, isCsrfEnabled } from '../infrastructure/csrf';
 
 const router = Router();
 let pricesCache: HybridCache<any>;
@@ -41,6 +40,7 @@ router.get('/', (_req: Request, res: Response) => {
       health: '/api/v1/health',
       healthLive: '/api/v1/health/live',
       healthReady: '/api/v1/health/ready',
+      wsToken: '/api/v1/ws-token',
       docs: '/api/v1/docs',
       portal: '/portal',
       metrics: '/metrics',
@@ -49,6 +49,16 @@ router.get('/', (_req: Request, res: Response) => {
       history: 'cursor-based (?cursor=<token>&limit=50)',
       sources: 'offset-based (?page=1&limit=20)',
       prices: 'offset-based (?page=1&limit=20)',
+    },
+  });
+});
+
+router.get('/ws-token', (_req: Request, res: Response) => {
+  res.json({
+    success: true,
+    data: {
+      enabled: isCsrfEnabled(),
+      token: issueWsCsrfToken(),
     },
   });
 });
