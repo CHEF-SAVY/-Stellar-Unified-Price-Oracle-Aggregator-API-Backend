@@ -42,6 +42,20 @@ fn test_initialize_and_submit() {
 }
 
 #[test]
+fn test_initialize_is_write_once() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let contract_id = env.register_contract(None, PriceOracleContract);
+    let client = PriceOracleContractClient::new(&env, &contract_id);
+
+    let admin = <Address as TestAddress>::generate(&env);
+    let other_admin = <Address as TestAddress>::generate(&env);
+
+    assert!(client.try_initialize(&admin).is_ok());
+    assert!(client.try_initialize(&other_admin).is_err());
+}
+
+#[test]
 fn test_unauthorized_source_rejected() {
     let (env, client, _admin, _oracle) = setup();
     let unauthorized = <Address as TestAddress>::generate(&env);

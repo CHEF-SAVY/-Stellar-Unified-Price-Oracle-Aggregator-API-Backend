@@ -6,6 +6,7 @@ import { AggregatedPrice, NormalizedPrice } from './infrastructure/types';
 import { ContractPublisher } from './contract-publishing/publisher';
 import { appendHistoricalPrice } from './persistence/history';
 import { appendUptimeSnapshot } from './persistence/uptime-history';
+import { FileArchivalService } from './persistence/file-archival';
 import { oracleSourceUptimePercent } from './observability/metrics';
 import { DatabaseClient } from './persistence/database';
 import { BaseSource } from './oracle-sources/base';
@@ -108,7 +109,7 @@ async function poll(): Promise<AggregatedPrice[]> {
       timestamp: Date.now(),
     });
 
-    const usdPrice = BigInt(ap.price) / BigInt(10n ** BigInt(ap.decimals));
+    const usdPrice = BigInt(ap.price) / (10n ** BigInt(ap.decimals));
     const healthStatuses = sources.map((s) => ({
       name: s.name,
       healthy: s.health.healthy,

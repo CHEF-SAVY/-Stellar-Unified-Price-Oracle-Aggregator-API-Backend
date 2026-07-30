@@ -32,4 +32,6 @@ pub enum OracleError {
     TimeLockNotElapsed = 23,
     GuardianOnly = 24,
     InvalidGovernanceConfig = 25,
+    InvalidPrice = 26,
+    BatchRootNotFound = 27,
 }
