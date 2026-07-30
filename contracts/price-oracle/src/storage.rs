@@ -14,6 +14,13 @@ pub fn set_admin(env: &Env, admin: &Address) {
     env.storage().instance().set(&DataKey::Admin, admin);
 }
 
+pub fn get_admin(env: &Env) -> Address {
+    env.storage()
+        .instance()
+        .get(&DataKey::Admin)
+        .expect("admin not initialized")
+}
+
 pub fn verify_admin(env: &Env, admin: &Address) -> Result<(), OracleError> {
     let stored: Address = env
         .storage()
@@ -189,6 +196,48 @@ pub fn set_deviation_threshold(env: &Env, threshold_bps: u32) {
 
 pub fn get_deviation_threshold(env: &Env) -> Option<u32> {
     env.storage().instance().get(&DataKey::DeviationThreshold)
+}
+
+pub fn get_batch_nonce(env: &Env) -> u64 {
+    env.storage().instance().get(&DataKey::BatchNonce).unwrap_or(0)
+}
+
+pub fn increment_batch_nonce(env: &Env) -> u64 {
+    let next = get_batch_nonce(env) + 1;
+    env.storage().instance().set(&DataKey::BatchNonce, &next);
+    next
+}
+
+pub fn set_batch_root(env: &Env, nonce: u64, root: &Bytes) {
+    env.storage()
+        .instance()
+        .set(&DataKey::BatchRoot(nonce), root);
+}
+
+pub fn get_batch_root(env: &Env, nonce: u64) -> Option<Bytes> {
+    env.storage().instance().get(&DataKey::BatchRoot(nonce))
+}
+
+pub fn set_query_fee(env: &Env, fee: &i128) {
+    env.storage().instance().set(&DataKey::QueryFee, fee);
+}
+
+pub fn get_query_fee(env: &Env) -> i128 {
+    env.storage().instance().get(&DataKey::QueryFee).unwrap_or(0)
+}
+
+pub fn set_whitelist(env: &Env, addr: &Address, status: bool) {
+    env.storage()
+        .instance()
+        .set(&DataKey::Whitelist(addr.clone()), &status);
+}
+
+pub fn get_fee_balance(env: &Env) -> i128 {
+    env.storage().instance().get(&DataKey::FeeBalance).unwrap_or(0)
+}
+
+pub fn set_fee_balance(env: &Env, balance: &i128) {
+    env.storage().instance().set(&DataKey::FeeBalance, balance);
 }
 
 // Issue #70 — source reputation

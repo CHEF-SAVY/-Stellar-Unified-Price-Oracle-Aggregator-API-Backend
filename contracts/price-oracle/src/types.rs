@@ -1,4 +1,4 @@
-use soroban_sdk::{contracttype, Address, String, Vec};
+use soroban_sdk::{contracttype, Address, Bytes, String, Vec};
 
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -29,6 +29,23 @@ pub struct OracleSource {
     pub address: Address,
     pub name: String,
     pub active: bool,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct BatchPriceEntry {
+    pub asset: String,
+    pub price: i128,
+    pub decimals: u32,
+    pub timestamp: u64,
+    pub source: Address,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct MerkleProof {
+    pub leaf_index: u32,
+    pub siblings: Vec<Bytes>,
 }
 
 // Issue #70 — source reputation tracking
@@ -187,16 +204,22 @@ pub enum DataKey {
     DeviationThreshold,
     // Issue #70 — reputation
     SourceReputation(Address),
- StakeInfo(Address),
- StakeTreasury,
- SlashHistory(Address, u32),
- SlashCount(Address),
+    BatchNonce,
+    BatchRoot(u64),
+    QueryFee,
+    Whitelist(Address),
+    FeeBalance,
+    StakeInfo(Address),
+    StakeTreasury,
+    SlashHistory(Address, u32),
+    SlashCount(Address),
     // Issue #67 — multi-sig
     MultiSigConfig,
     ProposalCount,
     MultiSigProposal(u32),
     // Governance
     GovernanceConfig,
+    GovernanceProposalCount,
     GovernanceProposal(u32),
     Vote(u32, Address),
 }
