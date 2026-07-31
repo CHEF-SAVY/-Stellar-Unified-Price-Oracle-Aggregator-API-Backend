@@ -381,6 +381,57 @@ impl PriceOracleContract {
         storage::set_trusted_asset(&env, &asset, trusted);
         Ok(())
     }
+
+    pub fn set_query_fee(env: Env, fee: i128) {
+        let admin = storage::get_admin(&env);
+        admin.require_auth();
+        storage::set_query_fee(&env, &fee);
+    }
+
+    pub fn get_query_fee(env: Env) -> i128 {
+        storage::get_query_fee(&env)
+    }
+
+    pub fn set_whitelist(env: Env, addr: Address, status: bool) {
+        let admin = storage::get_admin(&env);
+        admin.require_auth();
+        storage::set_whitelist(&env, &addr, status);
+    }
+
+    pub fn withdraw_fees(env: Env, to: Address) {
+        let admin = storage::get_admin(&env);
+        admin.require_auth();
+        let balance = storage::get_fee_balance(&env);
+        if balance > 0 {
+            storage::set_fee_balance(&env, &0);
+            let token = soroban_sdk::token::Client::new(&env, &to);
+            token.transfer(&env.current_contract_address(), &to, &balance);
+        }
+    }
+
+    pub fn stake(env: Env, source: Address, amount: i128, token: Address) {
+        source.require_auth();
+        let token_client = soroban_sdk::token::Client::new(&env, &token);
+        token_client.transfer(&source, &env.current_contract_address(), &amount);
+        let current = storage::get_stake(&env, &source);
+        storage::set_stake(&env, &source, &(current + amount));
+        env.events().publish(("source_staked", source), amount);
+    }
+
+    pub fn slash(env: Env, source: Address, amount: i128, reason: String) {
+        let admin = storage::get_admin(&env);
+        admin.require_auth();
+        let current = storage::get_stake(&env, &source);
+        let slashed = if amount > current { current } else { amount };
+        storage::set_stake(&env, &source, &(current - slashed));
+        let count = storage::get_slash_count(&env, &source);
+        storage::set_slash_count(&env, &source, &(count + 1));
+        env.events().publish(("source_slashed", source, reason), slashed);
+    }
+
+    pub fn get_stake_balance(env: Env, source: Address) -> i128 {
+        storage::get_stake(&env, &source)
+    }
 }
 
 // -------------------------------------------------------------------------
@@ -416,18 +467,15 @@ fn deviation_exceeds(new_price: i128, prev_price: i128, threshold_bps: u32) -> b
     if prev_price == 0 {
         return false;
     }
-    let prev_abs = prev_price.unsigned_abs(); // u128, correct for i128::MIN
+    let prev_abs = prev_price.unsigned_abs();
 
     let diff: u128 = if (new_price >= 0) == (prev_price >= 0) {
-        // Same sign: simple magnitude difference, no overflow possible.
         let new_abs = new_price.unsigned_abs();
         if new_abs >= prev_abs { new_abs - prev_abs } else { prev_abs - new_abs }
     } else {
-        // Opposite signs: |new| + |prev| with saturation guard.
         new_price.unsigned_abs().saturating_add(prev_abs)
     };
 
-    // deviation_bps = diff * 10_000 / prev_abs, saturating to avoid overflow.
     let deviation_bps = diff.saturating_mul(10_000) / prev_abs;
     deviation_bps > threshold_bps as u128
 }
@@ -437,7 +485,7 @@ fn deviation_exceeds(new_price: i128, prev_price: i128, threshold_bps: u32) -> b
 // -------------------------------------------------------------------------
 fn update_reputation(env: &Env, source: &Address, new_price: i128, asset: &String, timestamp: u64) {
     let is_accurate = match storage::get_latest_price(env, asset) {
-        None => true, // initial submission — always accurate
+        None => true,
         Some(prev) => !deviation_exceeds(new_price, prev.price, REPUTATION_ACCURACY_THRESHOLD_BPS as u32),
     };
 
@@ -572,59 +620,4 @@ fn calculate_usd_price(env: &Env, asset: &String, price: i128, decimals: u32) ->
         .checked_div(10i128.pow(xlm_price.decimals))?;
         .checked_div(10i128.pow(usdc_anchor.decimals))?;
     Some(usd_value)
-}
-
-impl PriceOracleContract {
-pub fn set_query_fee(env: Env, fee: i128) {
-let admin = storage::get_admin(&env);
-admin.require_auth();
-storage::set_query_fee(&env, &fee);
-}
-
-pub fn get_query_fee(env: Env) -> i128 {
-storage::get_query_fee(&env)
-}
-
-pub fn set_whitelist(env: Env, addr: Address, status: bool) {
-let admin = storage::get_admin(&env);
-admin.require_auth();
-storage::set_whitelist(&env, &addr, status);
-}
-
-pub fn withdraw_fees(env: Env, to: Address) {
-let admin = storage::get_admin(&env);
-admin.require_auth();
-let balance = storage::get_fee_balance(&env);
-if balance > 0 {
-storage::set_fee_balance(&env, &0);
-let token = soroban_sdk::token::Client::new(&env, &to);
-token.transfer(&env.current_contract_address(), &to, &balance);
-}
-}
-}
-
-impl PriceOracleContract {
-pub fn stake(env: Env, source: Address, amount: i128, token: Address) {
-source.require_auth();
-let token_client = soroban_sdk::token::Client::new(&env, &token);
-token_client.transfer(&source, &env.current_contract_address(), &amount);
-let current = storage::get_stake(&env, &source);
-storage::set_stake(&env, &source, &(current + amount));
-env.events().publish(("source_staked", source), amount);
-}
-
-pub fn slash(env: Env, source: Address, amount: i128, reason: String) {
-let admin = storage::get_admin(&env);
-admin.require_auth();
-let current = storage::get_stake(&env, &source);
-let slashed = if amount > current { current } else { amount };
-storage::set_stake(&env, &source, &(current - slashed));
-let count = storage::get_slash_count(&env, &source);
-storage::set_slash_count(&env, &source, &(count + 1));
-env.events().publish(("source_slashed", source, reason), slashed);
-}
-
-pub fn get_stake_balance(env: Env, source: Address) -> i128 {
-storage::get_stake(&env, &source)
-}
 }
