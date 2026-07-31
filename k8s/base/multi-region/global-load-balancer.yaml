@@ -7,6 +7,11 @@ metadata:
     tier: global
   annotations:
     external-dns.alpha.kubernetes.io/hostname: oracle.global.stellar-oracle.example
+    service.beta.kubernetes.io/aws-load-balancer-healthcheck-path: /api/v1/health
+    service.beta.kubernetes.io/aws-load-balancer-healthcheck-interval: "5"
+    service.beta.kubernetes.io/aws-load-balancer-target-group-attributes: deregistration_delay.timeout_seconds=1
+    global.stellar-oracle.io/routing-policy: latency
+    global.stellar-oracle.io/failover-window-ms: "100"
 spec:
   type: LoadBalancer
   selector:

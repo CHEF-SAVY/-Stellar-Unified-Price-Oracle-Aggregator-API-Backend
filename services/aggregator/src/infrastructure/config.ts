@@ -65,6 +65,17 @@ export const config = {
 
   logLevel: process.env.LOG_LEVEL || 'info',
 
+  region: {
+    id: process.env.REGION_ID || process.env.AWS_REGION || 'local',
+    activeActive: process.env.ACTIVE_ACTIVE_REGIONS_ENABLED === 'true',
+    peers: commaList(process.env.REGION_PEERS),
+    replicationTopic: process.env.REGION_REPLICATION_TOPIC || 'stellar-oracle-prices',
+    driftAlertPercent: parseFloat(process.env.REGION_DRIFT_ALERT_PERCENT || '0.1'),
+    quarantineEnabled: process.env.REGION_QUARANTINE_ENABLED === 'true',
+    quarantineRecoverPercent: parseFloat(process.env.REGION_QUARANTINE_RECOVER_PERCENT || '0.05'),
+    maxReplicationLagMs: parseInt(process.env.REGION_MAX_REPLICATION_LAG_MS || '5000', 10),
+  },
+
   database: {
     url: decryptSecret(process.env.DATABASE_URL || ''),
     // TimescaleDB: convert the price_history table into a hypertable when available.
