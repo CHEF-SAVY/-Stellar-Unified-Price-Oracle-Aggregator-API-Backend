@@ -88,6 +88,30 @@ const FLAG_REGISTRY: Record<string, FlagDefinition> = {
     rolloutPct: 0,
     autoDisableErrorRate: 1,
   },
+  'post-quantum-crypto': {
+    description: 'Enable hybrid Ed25519 and post-quantum signature verification',
+    enabled: false,
+    rolloutPct: 0,
+    autoDisableErrorRate: 0.01,
+  },
+  'programmable-feeds': {
+    description: 'Enable user-defined programmable feed deployment and marketplace APIs',
+    enabled: false,
+    rolloutPct: 0,
+    autoDisableErrorRate: 0.02,
+  },
+  'schema-migrations-v2': {
+    description: 'Enable dark-read zero-downtime schema migration framework',
+    enabled: false,
+    rolloutPct: 0,
+    autoDisableErrorRate: 0.01,
+  },
+  'high-throughput-pipeline': {
+    description: 'Enable the bounded fan-out and batch-processing price pipeline',
+    enabled: false,
+    rolloutPct: 0,
+    autoDisableErrorRate: 0.05,
+  },
 };
 
 // ---------------------------------------------------------------------------

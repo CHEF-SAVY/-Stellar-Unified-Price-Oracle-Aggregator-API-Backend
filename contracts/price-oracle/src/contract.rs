@@ -559,18 +559,17 @@ fn calculate_usd_price(env: &Env, asset: &String, price: i128, decimals: u32) ->
             return Some(10i128.pow(decimals));
         }
         if let Some(xlm_price) = storage::get_latest_price(env, &xlm) {
-            let base_asset_price = (price * xlm_price.price * 10i128.pow(decimals))
-                / (10i128.pow(decimals) * 10i128.pow(usdc_anchor.decimals));
+            let base_asset_price = (price * xlm_price.price)
+                .checked_div(10i128.pow(xlm_price.decimals))?;
             return Some(base_asset_price);
         }
     }
-
-    let usdc_anchor = storage::get_latest_price(env, &usdc)?;
     let xlm_price = storage::get_latest_price(env, &xlm)?;
-
-    // Simplified: (price_in_xlm * xlm_usd_price) / 10^usdc_decimals
-    // The 10^asset_decimals factors cancel out completely.
+    // (price_in_xlm * xlm_usd_price) / 10^xlm_price.decimals -- uses
+    // xlm_price's own decimals, not usdc_anchor's, since
+    // xlm_price.price is scaled by xlm_price.decimals.
     let usd_value = (price * xlm_price.price)
+        .checked_div(10i128.pow(xlm_price.decimals))?;
         .checked_div(10i128.pow(usdc_anchor.decimals))?;
     Some(usd_value)
 }

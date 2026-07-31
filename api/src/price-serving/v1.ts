@@ -16,6 +16,7 @@ import { conditionalCache } from './conditional-cache';
 import { eventBus } from '../domain-events';
 import complianceRoutes from '../governance/compliance';
 import { issueWsCsrfToken, isCsrfEnabled } from '../infrastructure/csrf';
+import { config } from '../infrastructure/config';
 
 const router = Router();
 let pricesCache: HybridCache<any>;
@@ -54,11 +55,24 @@ router.get('/', (_req: Request, res: Response) => {
 });
 
 router.get('/ws-token', (_req: Request, res: Response) => {
+  if (!isCsrfEnabled()) {
+    return res.status(503).json({
+      success: false,
+      error: {
+        code: 'WS_CSRF_DISABLED',
+        message: 'WebSocket CSRF tokens are not enabled',
+      },
+    });
+  }
+
+  const issuedAt = Date.now();
   res.json({
     success: true,
     data: {
-      enabled: isCsrfEnabled(),
       token: issueWsCsrfToken(),
+      tokenType: 'Bearer',
+      expiresInMs: config.ws.csrfTtlMs,
+      expiresAt: new Date(issuedAt + config.ws.csrfTtlMs).toISOString(),
     },
   });
 });
