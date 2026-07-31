@@ -6,6 +6,9 @@ import { AggregatedPrice, NormalizedPrice } from './infrastructure/types';
 import { ContractPublisher } from './contract-publishing/publisher';
 import { appendHistoricalPrice } from './persistence/history';
 import { appendUptimeSnapshot } from './persistence/uptime-history';
+import { FileArchivalService } from './persistence/file-archival';
+import { RegionPriceReplicator } from './replication/region-price-replicator';
+import { RegionQuarantineManager } from './replication/region-quarantine';
 import { oracleSourceUptimePercent } from './observability/metrics';
 import { DatabaseClient } from './persistence/database';
 import { BaseSource } from './oracle-sources/base';
@@ -36,6 +39,8 @@ function incAnomaly(asset: string, method: string): void {
 
 const aggregator = new PriceAggregator();
 const fileArchival = new FileArchivalService();
+const regionReplicator = new RegionPriceReplicator();
+const regionQuarantine = new RegionQuarantineManager();
 const alertManager = new AlertManager({
   webhookUrl: process.env.ALERT_WEBHOOK_URL ? decryptSecret(process.env.ALERT_WEBHOOK_URL) : undefined,
   slackWebhookUrl: process.env.ALERT_SLACK_WEBHOOK_URL ? decryptSecret(process.env.ALERT_SLACK_WEBHOOK_URL) : undefined,
@@ -99,6 +104,7 @@ async function poll(): Promise<AggregatedPrice[]> {
   }
 
   const aggregated = aggregator.getAllPrices();
+  regionReplicator.mergeLocalPrices(aggregated);
   const allSourceNames = ['chainlink', 'redstone', 'band', 'reflector'];
   for (const ap of aggregated) {
     // Publish PriceAggregatedEvent
@@ -150,6 +156,15 @@ async function poll(): Promise<AggregatedPrice[]> {
     if (sourcePrices) {
       await alertManager.checkSourceDisagreement(ap.asset, sourcePrices);
     }
+  }
+
+  const drift = regionReplicator.getDriftReport();
+  if (drift.maxDriftPercent > config.region.driftAlertPercent) {
+    logger.warn('Cross-region price drift exceeds threshold', drift);
+  }
+  const quarantine = regionQuarantine.evaluate(drift);
+  if (quarantine.quarantined) {
+    logger.error(`Region ${config.region.id} quarantined due to cross-region price drift`, quarantine);
   }
 
   const unhealthy = sources.filter((s) => !s.health.healthy);
@@ -257,6 +272,8 @@ async function main(): Promise<void> {
       reflector: persistentSources.reflector.health,
     },
     lastAggregated,
+    replicatedPrices: regionReplicator.getLatestPrices(),
+    region: regionQuarantine.getStatus(),
     circuitBreakerMetrics: aggregator.getCircuitBreakerMetrics(),
     circuitBreakerStates: sourceCircuitBreaker.getAllStatuses(),
     uptime: process.uptime(),
