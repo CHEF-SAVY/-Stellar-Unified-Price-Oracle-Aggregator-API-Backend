@@ -3,11 +3,11 @@ import { createGzip, createGunzip } from 'zlib';
 import { createWriteStream, createReadStream } from 'fs';
 import { pipeline } from 'stream/promises';
 import { Readable } from 'stream';
-import { createInterface } from 'readline';
 import path from 'path';
 import { config } from '../infrastructure/config';
+import { decrypt, encrypt, isEncrypted } from '../infrastructure/crypto';
 import { logger } from '../observability/logger';
-import { DATA_DIR, HISTORY_FILE, readHistoryFile, writeHistoryFile } from './history';
+import { DATA_DIR, HISTORY_FILE, historyEncryptionEnabled, readHistoryFile, writeHistoryFile } from './history';
 
 const SECONDS_PER_DAY = 86400;
 
@@ -154,7 +154,9 @@ export class FileArchivalService {
   }
 
   private async writeNdjsonGz(filePath: string, rows: HistoryEntry[]): Promise<void> {
-    const source = Readable.from(rows.map((r) => `${JSON.stringify(r)}\n`));
+    const ndjson = rows.map((r) => JSON.stringify(r)).join('\n') + '\n';
+    const payload = historyEncryptionEnabled() ? encrypt(ndjson) : ndjson;
+    const source = Readable.from([payload]);
     await pipeline(source, createGzip(), createWriteStream(filePath));
   }
 
@@ -199,12 +201,9 @@ export class FileArchivalService {
       current.map((h: any) => `${h.timestamp}:${h.source}`),
     );
 
-    const rl = createInterface({
-      input: createReadStream(filePath).pipe(createGunzip()),
-      crlfDelay: Infinity,
-    });
+    const archive = await this.readArchivePayload(filePath);
     let count = 0;
-    for await (const line of rl) {
+    for (const line of archive.split('\n')) {
       const trimmed = line.trim();
       if (!trimmed) continue;
       const entry = JSON.parse(trimmed) as HistoryEntry;
@@ -221,6 +220,16 @@ export class FileArchivalService {
       writeHistoryFile(historyPath, current);
     }
     return count;
+  }
+
+  private async readArchivePayload(filePath: string): Promise<string> {
+    const chunks: Buffer[] = [];
+    const gunzip = createReadStream(filePath).pipe(createGunzip());
+    for await (const chunk of gunzip) {
+      chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+    }
+    const payload = Buffer.concat(chunks).toString('utf-8');
+    return isEncrypted(payload) ? decrypt(payload) : payload;
   }
 
   /** Start the scheduled archival loop (issue #43). */

@@ -1,4 +1,31 @@
-use soroban_sdk::{contracttype, Address, String, Vec};
+use soroban_sdk::{contracttype, Address, Bytes, String, Vec};
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum PostQuantumScheme {
+    Dilithium,
+    Falcon,
+    Sphincs,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct PostQuantumAdminKey {
+    pub scheme: PostQuantumScheme,
+    pub public_key: String,
+    pub fingerprint: String,
+    pub requested_at: u64,
+    pub activates_at: u64,
+    pub revoked_at: Option<u64>,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct HybridSignature {
+    pub ed25519_signature: String,
+    pub pq_signature: String,
+    pub pq_scheme: PostQuantumScheme,
+}
 
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -29,6 +56,23 @@ pub struct OracleSource {
     pub address: Address,
     pub name: String,
     pub active: bool,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct BatchPriceEntry {
+    pub asset: String,
+    pub price: i128,
+    pub decimals: u32,
+    pub timestamp: u64,
+    pub source: Address,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct MerkleProof {
+    pub leaf_index: u32,
+    pub siblings: Vec<Bytes>,
 }
 
 // Issue #70 — source reputation tracking
@@ -187,16 +231,25 @@ pub enum DataKey {
     DeviationThreshold,
     // Issue #70 — reputation
     SourceReputation(Address),
- StakeInfo(Address),
- StakeTreasury,
- SlashHistory(Address, u32),
- SlashCount(Address),
+    BatchNonce,
+    BatchRoot(u64),
+    QueryFee,
+    Whitelist(Address),
+    FeeBalance,
+    StakeInfo(Address),
+    StakeTreasury,
+    SlashHistory(Address, u32),
+    SlashCount(Address),
     // Issue #67 — multi-sig
     MultiSigConfig,
     ProposalCount,
     MultiSigProposal(u32),
     // Governance
     GovernanceConfig,
+    GovernanceProposalCount,
     GovernanceProposal(u32),
     Vote(u32, Address),
+    PostQuantumAdminKey(String),
+    PostQuantumKeyLog(u32),
+    PostQuantumKeyLogCount,
 }

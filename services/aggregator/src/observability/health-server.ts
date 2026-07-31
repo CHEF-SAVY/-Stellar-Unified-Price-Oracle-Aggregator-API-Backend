@@ -10,6 +10,8 @@ interface HealthSnapshot {
   sourceHealth: Record<string, any>;
   lastAggregated: any[];
   uptime: number;
+  region?: { region: string; quarantined: boolean; reason?: string };
+  replicatedPrices?: any[];
   circuitBreakerMetrics?: any;
   circuitBreakerStates?: Record<string, SourceCBStatus>;
 }
@@ -58,12 +60,14 @@ export class HealthServer {
           ? Object.values(snap.circuitBreakerStates).filter((s) => s.state === 'OPEN')
           : [];
         const hasPrices = snap.lastAggregated.length > 0;
-        const ready = hasPrices && openCircuits.length < Object.keys(snap.sourceHealth).length;
+        const quarantined = snap.region?.quarantined === true;
+        const ready = hasPrices && !quarantined && openCircuits.length < Object.keys(snap.sourceHealth).length;
         const code = ready ? 200 : 503;
         res.writeHead(code, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({
           status: ready ? 'ready' : 'not_ready',
           hasPrices,
+          quarantined,
           openCircuitBreakers: openCircuits.length,
         }));
         return;
@@ -123,6 +127,7 @@ export class HealthServer {
           service: 'stellar-price-oracle-aggregator',
           status,
           uptime: snap.uptime,
+          region: snap.region,
           timestamp: Math.floor(Date.now() / 1000),
           sources: Object.entries(snap.sourceHealth).map(([name, h]: [string, any]) => ({
             name,
@@ -146,6 +151,7 @@ export class HealthServer {
           body.circuitBreakerMetrics = snap.circuitBreakerMetrics;
           body.circuitBreakerStates = snap.circuitBreakerStates;
           body.lastAggregated = snap.lastAggregated;
+          body.replicatedPrices = snap.replicatedPrices;
           body.processMemoryMb = Math.round(process.memoryUsage().heapUsed / 1024 / 1024);
           body.nodeVersion = process.version;
         }

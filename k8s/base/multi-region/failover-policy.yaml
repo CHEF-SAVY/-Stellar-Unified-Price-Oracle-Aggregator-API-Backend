@@ -4,8 +4,15 @@ metadata:
   name: region-failover-policy
 data:
   policy: |
-    active-passive
-    failoverWindowMs: 300000
+    active-active
+    regions:
+      - us-east-1
+      - eu-west-1
+      - ap-southeast-1
+    failoverWindowMs: 100
     healthCheckPath: /api/v1/health
-    promotionThreshold: 2
-    trafficDrainGracePeriodMs: 60000
+    healthCheckIntervalSeconds: 5
+    routingPolicy: latency
+    promotionThreshold: 1
+    trafficDrainGracePeriodMs: 100
+    quarantineOnAccuracyDegradation: true

@@ -2,7 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import type { ApiPrice, HistoricalPriceEntry } from '@stellar-oracle/types';
 import { DatabaseClient } from '../infrastructure/database';
-import { decrypt, isEncrypted } from '../governance/crypto';
+import { decrypt, encrypt, isEncrypted, isEncryptionConfigured } from '../governance/crypto';
 import { decodeCursor } from './pagination';
 
 const DATA_DIR = path.resolve(__dirname, '../../data');
@@ -22,7 +22,8 @@ export function resetSandboxData(now = Math.floor(Date.now() / 1000)): void {
     const history: HistoricalPriceEntry[] = Array.from({ length: 10 }, (_, index) => ({
       price: prices[asset], decimals: 7, source: 'sandbox-fixture', timestamp: now - (9 - index) * 60,
     }));
-    fs.writeFileSync(HISTORY_FILE(asset), JSON.stringify(history, null, 2));
+    const serialized = JSON.stringify(history, null, 2);
+    fs.writeFileSync(HISTORY_FILE(asset), isEncryptionConfigured() ? encrypt(serialized) : serialized);
   }
 }
 
