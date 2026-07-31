@@ -21,4 +21,4 @@ pub use contract::PriceOracleContract;
 pub use governance::GovernanceContract;
 pub use multisig::MultiSigAdminContract;
 pub use proxy::ProxyContract;
-pub use types::{AssetPrice, PriceDataPoint};
+pub use types::{AssetPrice, HybridSignature, PostQuantumAdminKey, PostQuantumScheme, PriceDataPoint};
