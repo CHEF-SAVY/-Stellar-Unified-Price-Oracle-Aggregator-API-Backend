@@ -4,6 +4,7 @@ import {
   TransactionBuilder,
   Operation,
   nativeToScVal,
+  scValToNative,
   xdr,
 } from '@stellar/stellar-sdk';
 import { config } from '../infrastructure/config';
@@ -228,12 +229,42 @@ export class ContractPublisher {
     }
   }
 
-  private extractEvents(_resultMetaXdr: unknown): xdr.DiagnosticEvent[] {
-    return [];
+  private extractEvents(resultMetaXdr: unknown): xdr.DiagnosticEvent[] {
+    if (Array.isArray(resultMetaXdr)) {
+      return resultMetaXdr.filter((event): event is xdr.DiagnosticEvent => xdr.DiagnosticEvent.isValid(event));
+    }
+
+    let meta: xdr.TransactionMeta;
+    if (typeof resultMetaXdr === 'string') {
+      meta = xdr.TransactionMeta.fromXDR(resultMetaXdr, 'base64');
+    } else if (Buffer.isBuffer(resultMetaXdr)) {
+      meta = xdr.TransactionMeta.fromXDR(resultMetaXdr);
+    } else if (xdr.TransactionMeta.isValid(resultMetaXdr as xdr.TransactionMeta)) {
+      meta = resultMetaXdr as xdr.TransactionMeta;
+    } else {
+      return [];
+    }
+
+    if (meta.switch() !== 3) return [];
+
+    const sorobanMeta = meta.v3().sorobanMeta();
+    return sorobanMeta?.diagnosticEvents() ?? [];
   }
 
-  private parseEventType(_event: xdr.DiagnosticEvent): string {
-    return 'contract_event';
+  private parseEventType(event: xdr.DiagnosticEvent): string {
+    const contractEvent = event.event();
+    const baseType = contractEvent.type().name;
+    const topics = contractEvent.body().v0().topics();
+    const firstTopic = topics[0];
+
+    if (!firstTopic) return baseType;
+
+    try {
+      const decodedTopic = scValToNative(firstTopic);
+      return typeof decodedTopic === 'string' ? `${baseType}:${decodedTopic}` : baseType;
+    } catch {
+      return baseType;
+    }
   }
 
   async publishAggregated(prices: AggregatedPrice[]): Promise<void> {

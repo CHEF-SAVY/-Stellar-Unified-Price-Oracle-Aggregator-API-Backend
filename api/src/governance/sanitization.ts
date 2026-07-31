@@ -1,10 +1,13 @@
 import { Request, Response, NextFunction } from 'express';
 
-// Strip characters that enable XSS / HTML injection
+const DANGEROUS_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
+const CONTROL_CHARS_RE = /[\u0000-\u001F\u007F]/g;
+
 function sanitizeString(value: string): string {
   return value
     .replace(/<[^>]*>/g, '')
-    .replace(/[<>"'`]/g, '')
+    .replace(/[<>"'`;\\]/g, '')
+    .replace(CONTROL_CHARS_RE, '')
     .trim();
 }
 
@@ -13,7 +16,9 @@ function sanitizeValue(value: unknown): unknown {
   if (Array.isArray(value)) return value.map(sanitizeValue);
   if (value !== null && typeof value === 'object') {
     return Object.fromEntries(
-      Object.entries(value as Record<string, unknown>).map(([k, v]) => [k, sanitizeValue(v)]),
+      Object.entries(value as Record<string, unknown>)
+        .filter(([k]) => !DANGEROUS_KEYS.has(k))
+        .map(([k, v]) => [sanitizeString(k), sanitizeValue(v)]),
     );
   }
   return value;
@@ -22,6 +27,12 @@ function sanitizeValue(value: unknown): unknown {
 export function sanitizeInputs(req: Request, _res: Response, next: NextFunction): void {
   if (req.body && typeof req.body === 'object') {
     req.body = sanitizeValue(req.body) as Record<string, unknown>;
+  }
+  if (req.query && typeof req.query === 'object') {
+    req.query = sanitizeValue(req.query) as typeof req.query;
+  }
+  if (req.params && typeof req.params === 'object') {
+    req.params = sanitizeValue(req.params) as typeof req.params;
   }
   next();
 }

@@ -114,7 +114,7 @@ async function poll(): Promise<AggregatedPrice[]> {
       timestamp: Date.now(),
     });
 
-    const usdPrice = BigInt(ap.price) / BigInt(10n ** BigInt(ap.decimals));
+    const usdPrice = BigInt(ap.price) / (10n ** BigInt(ap.decimals));
     const healthStatuses = sources.map((s) => ({
       name: s.name,
       healthy: s.health.healthy,

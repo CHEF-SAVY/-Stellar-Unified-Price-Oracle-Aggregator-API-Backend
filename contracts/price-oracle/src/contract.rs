@@ -18,9 +18,13 @@ pub struct PriceOracleContract;
 
 #[contractimpl]
 impl PriceOracleContract {
-    pub fn initialize(env: Env, admin: Address) {
+    pub fn initialize(env: Env, admin: Address) -> Result<(), OracleError> {
+        if storage::has_admin(&env) {
+            return Err(OracleError::AlreadyInitialized);
+        }
         storage::set_admin(&env, &admin);
         storage::set_storage_layout_version(&env, 1);
+        Ok(())
     }
 
     // -------------------------------------------------------------------------
@@ -39,6 +43,9 @@ impl PriceOracleContract {
 
         if !storage::is_authorized_source(&env, &source) {
             return Err(OracleError::UnauthorizedSource);
+        }
+        if price < 0 {
+            return Err(OracleError::InvalidPrice);
         }
 
         // Deviation check: only active when a threshold has been configured and a
@@ -118,6 +125,10 @@ impl PriceOracleContract {
     ) -> Result<PriceDataPoint, OracleError> {
         let root = storage::get_batch_root(&env, batch_nonce)
             .ok_or(OracleError::BatchRootNotFound)?;
+
+        if entry.price < 0 {
+            return Err(OracleError::InvalidPrice);
+        }
 
         if !merkle::verify_proof(&env, &entry, proof.leaf_index, &proof.siblings, &root) {
             return Err(OracleError::InvalidMerkleProof);
