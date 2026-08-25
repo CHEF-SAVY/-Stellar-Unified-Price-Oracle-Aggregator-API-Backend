@@ -1,6 +1,6 @@
 import http from 'http';
 import { logger } from './logger';
-import { withCorrelation, correlationHeaders } from '../infrastructure/correlation';
+import { correlationHeaders } from '../infrastructure/correlation';
 import { SourceCBStatus } from '../price-aggregation/source-circuit-breaker';
 import { register } from './metrics';
 import { getDailyCounts } from '../infrastructure/cost-model';
@@ -20,7 +20,6 @@ export class HealthServer {
   private server: http.Server | null = null;
   private port: number;
   private getSnapshot: () => HealthSnapshot;
-  private startedAt = Date.now();
 
   constructor(port: number, getSnapshot: () => HealthSnapshot) {
     this.port = port;

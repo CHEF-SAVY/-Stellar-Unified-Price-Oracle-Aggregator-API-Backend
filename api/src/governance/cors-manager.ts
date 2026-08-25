@@ -2,12 +2,14 @@ import fs from 'fs';
 import path from 'path';
 import { logger } from '../observability/logger';
 
-const PERSIST_FILE = path.resolve(process.env.CORS_PERSIST_PATH || '/tmp/cors-origins.json');
-
 export class CorsManager {
   private origins: Set<string> = new Set();
+  private readonly persistFile: string;
 
   constructor() {
+    // Read the persist path per-instance so tests and deployments can point
+    // each manager at its own file (e.g. CORS_PERSIST_PATH).
+    this.persistFile = path.resolve(process.env.CORS_PERSIST_PATH || '/tmp/cors-origins.json');
     this.loadDefaults();
     this.loadFromDisk();
   }
@@ -24,8 +26,8 @@ export class CorsManager {
 
   private loadFromDisk(): void {
     try {
-      if (fs.existsSync(PERSIST_FILE)) {
-        const data = JSON.parse(fs.readFileSync(PERSIST_FILE, 'utf8'));
+      if (fs.existsSync(this.persistFile)) {
+        const data = JSON.parse(fs.readFileSync(this.persistFile, 'utf8'));
         if (Array.isArray(data)) {
           for (const o of data) {
             if (typeof o === 'string') this.origins.add(o);
@@ -40,7 +42,7 @@ export class CorsManager {
 
   private persist(): void {
     try {
-      fs.writeFileSync(PERSIST_FILE, JSON.stringify(Array.from(this.origins), null, 2));
+      fs.writeFileSync(this.persistFile, JSON.stringify(Array.from(this.origins), null, 2));
     } catch (err) {
       logger.warn('Failed to persist CORS origins', err);
     }
@@ -59,10 +61,16 @@ export class CorsManager {
     if (pattern === '*') return true;
     if (pattern === origin) return true;
 
-    // Wildcard subdomain: *.example.com
+    // Wildcard subdomain: *.example.com also covers the apex (example.com).
     if (pattern.startsWith('*.')) {
       const suffix = pattern.slice(1); // .example.com
-      return origin.endsWith(suffix) || origin === suffix.slice(1);
+      let hostname = origin;
+      try {
+        hostname = new URL(origin).hostname;
+      } catch {
+        // Not a parseable URL; compare the raw string.
+      }
+      return hostname.endsWith(suffix) || hostname === suffix.slice(1);
     }
     return false;
   }

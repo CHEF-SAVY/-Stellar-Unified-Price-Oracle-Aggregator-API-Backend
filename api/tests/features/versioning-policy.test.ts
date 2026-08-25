@@ -164,7 +164,10 @@ describe('Issue #245: API Versioning Strategy and v1 Deprecation Policy', () => 
 
       expect(response.status).toBe(200);
       expect(response.headers['sunset']).toBeDefined();
-      expect(response.headers['sunset']).toContain(DEPRECATION_SUNSET_DATE);
+      // RFC 8594: Sunset is an HTTP-date; verify it matches the configured date.
+      const sunsetDate = new Date(response.headers['sunset'] as string);
+      expect(isNaN(sunsetDate.getTime())).toBe(false);
+      expect(sunsetDate.toISOString().slice(0, 10)).toBe(DEPRECATION_SUNSET_DATE);
     });
 
     it('should include deprecation Link header in v1 responses', async () => {
@@ -423,7 +426,8 @@ describe('Issue #245: API Versioning Strategy and v1 Deprecation Policy', () => 
       const response = await request(app).get('/api/v1/prices');
 
       expect(response.status).toBe(200);
-      expect(response.headers['sunset']).toContain(DEPRECATION_SUNSET_DATE);
+      const sunsetDate = new Date(response.headers['sunset'] as string);
+      expect(sunsetDate.toISOString().slice(0, 10)).toBe(DEPRECATION_SUNSET_DATE);
     });
 
     it('should use DEPRECATION_LINK constant', async () => {

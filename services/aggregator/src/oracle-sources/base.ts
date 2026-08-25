@@ -1,4 +1,3 @@
-import axios from 'axios';
 import BigNumber from 'bignumber.js';
 import { logger } from '../observability/logger';
 import { NormalizedPrice, OracleSourceName, SourceHealthStatus } from '../infrastructure/types';

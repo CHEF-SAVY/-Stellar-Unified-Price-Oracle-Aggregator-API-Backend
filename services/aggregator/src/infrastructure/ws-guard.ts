@@ -22,7 +22,6 @@ export class WsConnectionGuard {
   ): void => {
     const ip = this.clientIp(info.req);
     const origin = info.origin;
-    const { websocket } = config.security;
 
     if (!this.checkRateLimit(ip)) {
       logger.warn('[WS] Upgrade rejected — rate limit', { ip, origin: origin || '(none)' });

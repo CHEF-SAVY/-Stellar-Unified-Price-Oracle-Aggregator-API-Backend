@@ -50,6 +50,13 @@ export const links = {
     };
   },
 
+  sources(): HalLinks {
+    return {
+      self: { href: `${base()}/sources`, method: 'GET' },
+      prices: links.prices().self,
+    };
+  },
+
   history(asset: string): HalLinks {
     const symbol = asset.toUpperCase();
     return {

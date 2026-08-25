@@ -126,7 +126,7 @@ describe('Issue #243: Historical Data Export Endpoints', () => {
         .query({ format: 'csv', from, to, asset: 'XLM' });
 
       expect(response.status).toBe(200);
-      expect(response.headers['content-type']).toBe('text/csv');
+      expect(response.headers['content-type']).toContain('text/csv');
       expect(response.headers['content-disposition']).toContain('attachment');
       expect(response.text).toContain('asset,timestamp,price');
       expect(response.text).toContain('XLM');
@@ -226,7 +226,7 @@ describe('Issue #243: Historical Data Export Endpoints', () => {
         .query({ format: 'csv', asset: 'XLM', from, limit: 100 });
 
       expect(response.status).toBe(200);
-      expect(response.headers['content-type']).toBe('text/csv');
+      expect(response.headers['content-type']).toContain('text/csv');
       expect(response.headers['content-disposition']).toContain('attachment');
       expect(response.text).toContain('asset,timestamp,price,source');
     });

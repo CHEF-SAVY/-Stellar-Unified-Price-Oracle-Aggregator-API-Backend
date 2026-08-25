@@ -4,6 +4,7 @@ import { webhookService, WebhookRegistration, WebhookTrigger } from '../src/webh
 describe('Webhooks: CRUD Management and Delivery System', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    webhookService.reset();
   });
 
   describe('POST /webhooks - Register webhook', () => {
@@ -11,7 +12,7 @@ describe('Webhooks: CRUD Management and Delivery System', () => {
       const url = 'https://webhook.example.com/price-change';
       const trigger: WebhookTrigger = { type: 'threshold', asset: 'XLM', value: 5 };
 
-      const webhook = webhookService.register('test-key-prefix', url, trigger);
+      const webhook = webhookService.register(url, 'test-key-prefix', trigger);
 
       expect(webhook).toBeDefined();
       expect(webhook.url).toBe(url);
@@ -26,7 +27,7 @@ describe('Webhooks: CRUD Management and Delivery System', () => {
       const url = 'https://webhook.example.com/price-update';
       const trigger: WebhookTrigger = { type: 'interval', asset: 'XLM', value: 60000 };
 
-      const webhook = webhookService.register('test-key-prefix', url, trigger);
+      const webhook = webhookService.register(url, 'test-key-prefix', trigger);
 
       expect(webhook.trigger.type).toBe('interval');
       expect(webhook.trigger.value).toBe(60000);
@@ -37,8 +38,8 @@ describe('Webhooks: CRUD Management and Delivery System', () => {
       const url2 = 'https://webhook2.example.com';
       const trigger: WebhookTrigger = { type: 'threshold', asset: 'XLM', value: 5 };
 
-      const webhook1 = webhookService.register('key1', url1, trigger);
-      const webhook2 = webhookService.register('key2', url2, trigger);
+      const webhook1 = webhookService.register(url1, 'key1', trigger);
+      const webhook2 = webhookService.register(url2, 'key2', trigger);
 
       expect(webhook1.id).not.toBe(webhook2.id);
     });
@@ -47,8 +48,8 @@ describe('Webhooks: CRUD Management and Delivery System', () => {
       const url = 'https://webhook.example.com';
       const trigger: WebhookTrigger = { type: 'threshold', asset: 'XLM', value: 5 };
 
-      const webhook1 = webhookService.register('key1', url, trigger);
-      const webhook2 = webhookService.register('key2', url, trigger);
+      const webhook1 = webhookService.register(url, 'key1', trigger);
+      const webhook2 = webhookService.register(url, 'key2', trigger);
 
       expect(webhook1.secret).not.toBe(webhook2.secret);
     });
@@ -62,9 +63,9 @@ describe('Webhooks: CRUD Management and Delivery System', () => {
 
     it('should list all registered webhooks', () => {
       const trigger: WebhookTrigger = { type: 'threshold', asset: 'XLM', value: 5 };
-      webhookService.register('key1', 'https://webhook1.example.com', trigger);
-      webhookService.register('key2', 'https://webhook2.example.com', trigger);
-      webhookService.register('key3', 'https://webhook3.example.com', trigger);
+      webhookService.register('https://webhook1.example.com', 'key1', trigger);
+      webhookService.register('https://webhook2.example.com', 'key2', trigger);
+      webhookService.register('https://webhook3.example.com', 'key3', trigger);
 
       const webhooks = webhookService.list();
       expect(webhooks.length).toBe(3);
@@ -72,9 +73,9 @@ describe('Webhooks: CRUD Management and Delivery System', () => {
 
     it('should filter webhooks by API key prefix', () => {
       const trigger: WebhookTrigger = { type: 'threshold', asset: 'XLM', value: 5 };
-      webhookService.register('key1', 'https://webhook1.example.com', trigger);
-      webhookService.register('key1', 'https://webhook2.example.com', trigger);
-      webhookService.register('key2', 'https://webhook3.example.com', trigger);
+      webhookService.register('https://webhook1.example.com', 'key1', trigger);
+      webhookService.register('https://webhook2.example.com', 'key1', trigger);
+      webhookService.register('https://webhook3.example.com', 'key2', trigger);
 
       const key1Webhooks = webhookService.list('key1');
       expect(key1Webhooks.length).toBe(2);
@@ -87,7 +88,7 @@ describe('Webhooks: CRUD Management and Delivery System', () => {
     it('should return complete webhook details', () => {
       const url = 'https://webhook.example.com';
       const trigger: WebhookTrigger = { type: 'threshold', asset: 'XLM', value: 5 };
-      const registered = webhookService.register('test-key', url, trigger);
+      const registered = webhookService.register(url, 'test-key', trigger);
 
       const webhooks = webhookService.list();
       const found = webhooks[0];
@@ -103,7 +104,7 @@ describe('Webhooks: CRUD Management and Delivery System', () => {
   describe('GET /webhooks/{id} - Get webhook details', () => {
     it('should retrieve a webhook by ID', () => {
       const trigger: WebhookTrigger = { type: 'threshold', asset: 'XLM', value: 5 };
-      const registered = webhookService.register('test-key', 'https://webhook.example.com', trigger);
+      const registered = webhookService.register('https://webhook.example.com', 'test-key', trigger);
 
       const retrieved = webhookService.get(registered.id);
       expect(retrieved).toBeDefined();
@@ -120,7 +121,7 @@ describe('Webhooks: CRUD Management and Delivery System', () => {
   describe('DELETE /webhooks/{id} - Remove webhook', () => {
     it('should delete a registered webhook', () => {
       const trigger: WebhookTrigger = { type: 'threshold', asset: 'XLM', value: 5 };
-      const webhook = webhookService.register('test-key', 'https://webhook.example.com', trigger);
+      const webhook = webhookService.register('https://webhook.example.com', 'test-key', trigger);
 
       const result = webhookService.remove(webhook.id);
       expect(result).toBe(true);
@@ -136,8 +137,8 @@ describe('Webhooks: CRUD Management and Delivery System', () => {
 
     it('should remove webhook from list', () => {
       const trigger: WebhookTrigger = { type: 'threshold', asset: 'XLM', value: 5 };
-      const webhook1 = webhookService.register('key1', 'https://webhook1.example.com', trigger);
-      const webhook2 = webhookService.register('key1', 'https://webhook2.example.com', trigger);
+      const webhook1 = webhookService.register('https://webhook1.example.com', 'key1', trigger);
+      const webhook2 = webhookService.register('https://webhook2.example.com', 'key1', trigger);
 
       webhookService.remove(webhook1.id);
 
@@ -150,7 +151,7 @@ describe('Webhooks: CRUD Management and Delivery System', () => {
   describe('Webhook Delivery with Exponential Backoff', () => {
     it('should log successful delivery', async () => {
       const trigger: WebhookTrigger = { type: 'threshold', asset: 'XLM', value: 5 };
-      const webhook = webhookService.register('test-key', 'https://webhook.example.com', trigger);
+      const webhook = webhookService.register('https://webhook.example.com', 'test-key', trigger);
 
       vi.stubGlobal('fetch', vi.fn(() =>
         Promise.resolve(new Response(JSON.stringify({ ok: true }), { status: 200 }))
@@ -166,7 +167,7 @@ describe('Webhooks: CRUD Management and Delivery System', () => {
 
     it('should retry failed deliveries', async () => {
       const trigger: WebhookTrigger = { type: 'threshold', asset: 'XLM', value: 5 };
-      const webhook = webhookService.register('test-key', 'https://webhook.example.com', trigger);
+      const webhook = webhookService.register('https://webhook.example.com', 'test-key', trigger);
 
       let attemptCount = 0;
       vi.stubGlobal('fetch', vi.fn(() => {
@@ -185,7 +186,7 @@ describe('Webhooks: CRUD Management and Delivery System', () => {
 
     it('should log delivery attempts', async () => {
       const trigger: WebhookTrigger = { type: 'threshold', asset: 'XLM', value: 5 };
-      const webhook = webhookService.register('test-key', 'https://webhook.example.com', trigger);
+      const webhook = webhookService.register('https://webhook.example.com', 'test-key', trigger);
 
       vi.stubGlobal('fetch', vi.fn(() =>
         Promise.resolve(new Response(JSON.stringify({ ok: true }), { status: 200 }))
@@ -203,7 +204,7 @@ describe('Webhooks: CRUD Management and Delivery System', () => {
   describe('GET /webhooks/{id}/deliveries - Delivery History', () => {
     it('should retrieve delivery logs for a webhook', async () => {
       const trigger: WebhookTrigger = { type: 'threshold', asset: 'XLM', value: 5 };
-      const webhook = webhookService.register('test-key', 'https://webhook.example.com', trigger);
+      const webhook = webhookService.register('https://webhook.example.com', 'test-key', trigger);
 
       vi.stubGlobal('fetch', vi.fn(() =>
         Promise.resolve(new Response(JSON.stringify({ ok: true }), { status: 200 }))
@@ -218,7 +219,7 @@ describe('Webhooks: CRUD Management and Delivery System', () => {
 
     it('should return empty array when no deliveries exist', () => {
       const trigger: WebhookTrigger = { type: 'threshold', asset: 'XLM', value: 5 };
-      const webhook = webhookService.register('test-key', 'https://webhook.example.com', trigger);
+      const webhook = webhookService.register('https://webhook.example.com', 'test-key', trigger);
 
       const deliveries = webhookService.deliveries(webhook.id);
       expect(deliveries).toEqual([]);
@@ -226,7 +227,7 @@ describe('Webhooks: CRUD Management and Delivery System', () => {
 
     it('should include delivery error messages on failure', async () => {
       const trigger: WebhookTrigger = { type: 'threshold', asset: 'XLM', value: 5 };
-      const webhook = webhookService.register('test-key', 'https://webhook.example.com', trigger);
+      const webhook = webhookService.register('https://webhook.example.com', 'test-key', trigger);
 
       const errorMessage = 'Connection refused';
       vi.stubGlobal('fetch', vi.fn(() =>
@@ -245,7 +246,7 @@ describe('Webhooks: CRUD Management and Delivery System', () => {
   describe('Price Update Triggers', () => {
     it('should fire threshold-triggered webhooks on price change', async () => {
       const trigger: WebhookTrigger = { type: 'threshold', asset: 'XLM', value: 5 };
-      const webhook = webhookService.register('test-key', 'https://webhook.example.com', trigger);
+      const webhook = webhookService.register('https://webhook.example.com', 'test-key', trigger);
 
       vi.stubGlobal('fetch', vi.fn(() =>
         Promise.resolve(new Response(JSON.stringify({ ok: true }), { status: 200 }))
@@ -260,7 +261,7 @@ describe('Webhooks: CRUD Management and Delivery System', () => {
 
     it('should fire interval-triggered webhooks at specified intervals', async () => {
       const trigger: WebhookTrigger = { type: 'interval', asset: 'XLM', value: 1000 };
-      const webhook = webhookService.register('test-key', 'https://webhook.example.com', trigger);
+      const webhook = webhookService.register('https://webhook.example.com', 'test-key', trigger);
 
       vi.stubGlobal('fetch', vi.fn(() =>
         Promise.resolve(new Response(JSON.stringify({ ok: true }), { status: 200 }))
@@ -274,7 +275,7 @@ describe('Webhooks: CRUD Management and Delivery System', () => {
 
     it('should not fire inactive webhooks', async () => {
       const trigger: WebhookTrigger = { type: 'threshold', asset: 'XLM', value: 5 };
-      const webhook = webhookService.register('test-key', 'https://webhook.example.com', trigger);
+      const webhook = webhookService.register('https://webhook.example.com', 'test-key', trigger);
 
       vi.stubGlobal('fetch', vi.fn());
 

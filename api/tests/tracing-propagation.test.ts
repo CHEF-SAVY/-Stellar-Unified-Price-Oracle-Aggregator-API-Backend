@@ -301,7 +301,7 @@ describe('OpenTelemetry: Distributed Tracing with Context Propagation', () => {
       expect(parts[0]).toBe('00');
       expect(parts[1]).toHaveLength(32);
       expect(parts[2]).toHaveLength(16);
-      expect(parts[3]).toMatch(/^[01]$/);
+      expect(parts[3]).toMatch(/^(00|01)$/);
     });
   });
 

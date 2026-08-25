@@ -11,12 +11,10 @@
 
 import { logger } from '../observability/logger';
 import {
-  ProposalAction,
   MultiSigConfig,
   MultiSigProposal,
   GovernanceConfig,
   GovernanceProposal,
-  ProposalStatus,
   CreateMultiSigProposalRequest,
   CreateGovernanceProposalRequest,
   ListProposalsQuery,

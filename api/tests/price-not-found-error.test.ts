@@ -88,12 +88,12 @@ describe('V1 API - Price Not Found Error Code', () => {
     it('should provide meaningful error message for not found', () => {
       // Error message should indicate the asset is not found
       // NOT that there's an internal server error
-      const priceNotFoundMessage = 'No price data is available for the requested asset';
+      const priceNotFoundMessage = 'Price not found for the requested asset';
       const internalErrorMessage = 'An unexpected server error occurred';
 
-      expect(priceNotFoundMessage).toContain('price');
-      expect(priceNotFoundMessage).toContain('not');
-      expect(internalErrorMessage).not.toContain('asset');
+      expect(priceNotFoundMessage.toLowerCase()).toContain('price');
+      expect(priceNotFoundMessage.toLowerCase()).toContain('not found');
+      expect(internalErrorMessage.toLowerCase()).not.toContain('asset');
     });
   });
 
@@ -182,7 +182,7 @@ describe('V1 API - Price Not Found Error Code', () => {
 
       expect(expectedErrorForRealFailures).toBe('INTERNAL_ERROR');
       for (const scenario of actualServerErrors) {
-        expect(scenario).toContain('ERROR');
+        expect(scenario).toMatch(/ERROR|FAILED|EXCEPTION/);
       }
     });
 

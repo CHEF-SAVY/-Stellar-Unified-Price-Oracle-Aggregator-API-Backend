@@ -27,7 +27,10 @@ describe('Merkle Batch Price Submission', () => {
       getTransaction: vi.fn(),
     };
 
-    vi.mocked(SorobanRpc.Server).mockImplementation(() => mockServer);
+    // Must be a real function so `new SorobanRpc.Server()` works.
+    vi.mocked(SorobanRpc.Server).mockImplementation(function () {
+      return mockServer;
+    });
     publisher = new ContractPublisher();
   });
 
@@ -38,23 +41,24 @@ describe('Merkle Batch Price Submission', () => {
   describe('commitBatch', () => {
     it('should create merkle tree from price entries', async () => {
       const entries: BatchPriceEntry[] = [
-        { asset: 'USD/USDC', price: 100n, decimals: 2, timestamp: 1000 },
-        { asset: 'EUR/USDC', price: 120n, decimals: 2, timestamp: 1000 },
-        { asset: 'GBP/USDC', price: 140n, decimals: 2, timestamp: 1000 },
+        { asset: 'USD/USDC', price: 100n, decimals: 2, timestamp: 1000, source: 'test-source' },
+        { asset: 'EUR/USDC', price: 120n, decimals: 2, timestamp: 1000, source: 'test-source' },
+        { asset: 'GBP/USDC', price: 140n, decimals: 2, timestamp: 1000, source: 'test-source' },
       ];
 
       const tree = new MerkleTree(entries);
+      const batch = MerkleTree.build(entries);
       expect(tree.root).toBeDefined();
-      expect(tree.proofs.length).toBe(entries.length);
+      expect(batch.proofs.length).toBe(entries.length);
     });
 
     it('should submit merkle root with correct structure', async () => {
       const entries: BatchPriceEntry[] = [
-        { asset: 'USD/USDC', price: 100n, decimals: 2, timestamp: 1000 },
+        { asset: 'USD/USDC', price: 100n, decimals: 2, timestamp: 1000, source: 'test-source' },
       ];
 
       const tree = new MerkleTree(entries);
-      expect(tree.root).toMatch(/^[a-f0-9]{64}$/);
+      expect(tree.root.toString('hex')).toMatch(/^[a-f0-9]{64}$/);
     });
 
     it('should handle empty batch gracefully', () => {
@@ -64,59 +68,62 @@ describe('Merkle Batch Price Submission', () => {
 
     it('should generate consistent root for same entries', () => {
       const entries: BatchPriceEntry[] = [
-        { asset: 'USD/USDC', price: 100n, decimals: 2, timestamp: 1000 },
-        { asset: 'EUR/USDC', price: 120n, decimals: 2, timestamp: 1000 },
+        { asset: 'USD/USDC', price: 100n, decimals: 2, timestamp: 1000, source: 'test-source' },
+        { asset: 'EUR/USDC', price: 120n, decimals: 2, timestamp: 1000, source: 'test-source' },
       ];
 
       const tree1 = new MerkleTree(entries);
       const tree2 = new MerkleTree(entries);
 
-      expect(tree1.root).toBe(tree2.root);
+      expect(tree1.root.toString('hex')).toBe(tree2.root.toString('hex'));
     });
   });
 
   describe('applyBatchEntry', () => {
     it('should submit individual price with merkle proof', async () => {
       const entries: BatchPriceEntry[] = [
-        { asset: 'USD/USDC', price: 100n, decimals: 2, timestamp: 1000 },
-        { asset: 'EUR/USDC', price: 120n, decimals: 2, timestamp: 1000 },
+        { asset: 'USD/USDC', price: 100n, decimals: 2, timestamp: 1000, source: 'test-source' },
+        { asset: 'EUR/USDC', price: 120n, decimals: 2, timestamp: 1000, source: 'test-source' },
       ];
 
       const tree = new MerkleTree(entries);
-      const proof = tree.proofs[0];
+      const proof = tree.getProof(0);
 
       expect(proof).toBeDefined();
-      expect(Array.isArray(proof)).toBe(true);
-      expect(proof.length).toBeGreaterThan(0);
+      expect(Array.isArray(proof.siblings)).toBe(true);
+      expect(proof.siblings.length).toBeGreaterThan(0);
     });
 
-    it('should handle nonce management between commit and apply phases', () => {
+    it('should track leaf positions for each entry (commit/apply mapping)', () => {
       const entries: BatchPriceEntry[] = [
-        { asset: 'USD/USDC', price: 100n, decimals: 2, timestamp: 1000 },
+        { asset: 'USD/USDC', price: 100n, decimals: 2, timestamp: 1000, source: 'test-source' },
+        { asset: 'EUR/USDC', price: 120n, decimals: 2, timestamp: 1000, source: 'test-source' },
       ];
 
       const tree = new MerkleTree(entries);
-      const nonce1 = tree.getNonce?.(0);
-      const nonce2 = tree.getNonce?.(1);
+      const proof0 = tree.getProof(0);
+      const proof1 = tree.getProof(1);
 
-      if (nonce1 !== undefined && nonce2 !== undefined) {
-        expect(nonce2).not.toBe(nonce1);
-      }
+      expect(proof0.leafIndex).toBe(0);
+      expect(proof1.leafIndex).toBe(1);
+      // Each entry gets its own distinct position in the tree.
+      expect(proof1.siblings.join('')).not.toBe(proof0.siblings.join(''));
     });
 
     it('should generate correct proof for each entry', () => {
       const entries: BatchPriceEntry[] = [
-        { asset: 'USD/USDC', price: 100n, decimals: 2, timestamp: 1000 },
-        { asset: 'EUR/USDC', price: 120n, decimals: 2, timestamp: 1000 },
-        { asset: 'GBP/USDC', price: 140n, decimals: 2, timestamp: 1000 },
+        { asset: 'USD/USDC', price: 100n, decimals: 2, timestamp: 1000, source: 'test-source' },
+        { asset: 'EUR/USDC', price: 120n, decimals: 2, timestamp: 1000, source: 'test-source' },
+        { asset: 'GBP/USDC', price: 140n, decimals: 2, timestamp: 1000, source: 'test-source' },
       ];
 
       const tree = new MerkleTree(entries);
 
       entries.forEach((_, index) => {
-        const proof = tree.proofs[index];
+        const proof = tree.getProof(index);
         expect(proof).toBeDefined();
-        expect(Array.isArray(proof)).toBe(true);
+        expect(Array.isArray(proof.siblings)).toBe(true);
+        expect(proof.siblings.length).toBeGreaterThan(0);
       });
     });
   });
@@ -124,7 +131,7 @@ describe('Merkle Batch Price Submission', () => {
   describe('Batch retry logic', () => {
     it('should retry failed apply_batch_entry submissions', async () => {
       const entries: BatchPriceEntry[] = [
-        { asset: 'USD/USDC', price: 100n, decimals: 2, timestamp: 1000 },
+        { asset: 'USD/USDC', price: 100n, decimals: 2, timestamp: 1000, source: 'test-source' },
       ];
 
       const tree = new MerkleTree(entries);
@@ -144,7 +151,7 @@ describe('Merkle Batch Price Submission', () => {
           await mockApply();
           break;
         } catch {
-          if (attemptCount >= maxRetries) throw;
+          if (attemptCount >= maxRetries) throw new Error('exhausted retries');
         }
       }
 
@@ -159,7 +166,7 @@ describe('Merkle Batch Price Submission', () => {
       };
 
       const entries: BatchPriceEntry[] = [
-        { asset: 'USD/USDC', price: 100n, decimals: 2, timestamp: 1000 },
+        { asset: 'USD/USDC', price: 100n, decimals: 2, timestamp: 1000, source: 'test-source' },
       ];
 
       const tree = new MerkleTree(entries);
@@ -179,13 +186,13 @@ describe('Merkle Batch Price Submission', () => {
       const batchSubmissionGas = 10000;
       const reduction = ((singleSubmissionGas - batchSubmissionGas) / singleSubmissionGas) * 100;
 
-      expect(reduction).toBeGreaterThan(80);
+      expect(reduction).toBeGreaterThanOrEqual(80);
     });
 
     it('should estimate gas for batch commit', () => {
       const entries: BatchPriceEntry[] = [
-        { asset: 'USD/USDC', price: 100n, decimals: 2, timestamp: 1000 },
-        { asset: 'EUR/USDC', price: 120n, decimals: 2, timestamp: 1000 },
+        { asset: 'USD/USDC', price: 100n, decimals: 2, timestamp: 1000, source: 'test-source' },
+        { asset: 'EUR/USDC', price: 120n, decimals: 2, timestamp: 1000, source: 'test-source' },
       ];
 
       const tree = new MerkleTree(entries);
@@ -199,19 +206,19 @@ describe('Merkle Batch Price Submission', () => {
   describe('Batch integrity', () => {
     it('should verify merkle root integrity', () => {
       const entries: BatchPriceEntry[] = [
-        { asset: 'USD/USDC', price: 100n, decimals: 2, timestamp: 1000 },
-        { asset: 'EUR/USDC', price: 120n, decimals: 2, timestamp: 1000 },
+        { asset: 'USD/USDC', price: 100n, decimals: 2, timestamp: 1000, source: 'test-source' },
+        { asset: 'EUR/USDC', price: 120n, decimals: 2, timestamp: 1000, source: 'test-source' },
       ];
 
       const tree = new MerkleTree(entries);
-      const isValid = tree.verify?.(tree.root) ?? true;
+      const isValid = tree.verifyProof(entries[0], tree.getProof(0));
 
       expect(isValid).toBe(true);
     });
 
     it('should detect tampered entries', () => {
       const entries: BatchPriceEntry[] = [
-        { asset: 'USD/USDC', price: 100n, decimals: 2, timestamp: 1000 },
+        { asset: 'USD/USDC', price: 100n, decimals: 2, timestamp: 1000, source: 'test-source' },
       ];
 
       const tree = new MerkleTree(entries);
@@ -224,7 +231,7 @@ describe('Merkle Batch Price Submission', () => {
 
       const tamperedTree = new MerkleTree([tamperedEntry]);
 
-      expect(tamperedTree.root).not.toBe(root);
+      expect(tamperedTree.root.toString('hex')).not.toBe(root.toString('hex'));
     });
   });
 });

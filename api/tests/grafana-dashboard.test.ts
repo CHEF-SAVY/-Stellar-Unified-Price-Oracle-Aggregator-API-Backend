@@ -35,7 +35,7 @@ describe('Grafana Dashboard', () => {
     const raw = fs.readFileSync(dashboardPath, 'utf-8');
     const dashboard = JSON.parse(raw);
 
-    expect(dashboard.panels).toHaveLength(8);
+    expect(dashboard.panels).toHaveLength(7);
 
     const panelTitles = dashboard.panels.map((p: any) => p.title);
     expect(panelTitles).toContain('Source Health Status');

@@ -126,6 +126,15 @@ class WebhookService {
   }
 
   /**
+   * Clears all registrations and delivery history. Used by tests for isolation
+   * and available for operators who need to wipe in-memory webhook state.
+   */
+  reset(): void {
+    this.webhooks.clear();
+    this.deliveryLog = [];
+  }
+
+  /**
    * Delivers a payload with exponential backoff retry. Failures are logged
    * but never throw, since this runs from background price-update fan-out.
    */

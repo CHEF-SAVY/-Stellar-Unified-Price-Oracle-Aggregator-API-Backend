@@ -1,8 +1,9 @@
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
-import WebSocket from 'ws';
+import WebSocket, { WebSocketServer as WsServer } from 'ws';
 import { createServer } from 'http';
 import type { Server as HttpServer } from 'http';
-import { Server as WsServer } from 'ws';
+
+type ClientSocket = InstanceType<typeof WebSocket>;
 
 interface ClientSubscription {
   assets: Set<string>;
@@ -15,13 +16,13 @@ const WS_PORT = 9999;
 
 let httpServer: HttpServer;
 let wss: WsServer;
-const clientSubscriptions = new Map<WebSocket, ClientSubscription>();
+const clientSubscriptions = new Map<ClientSocket, ClientSubscription>();
 
-beforeAll((done) => {
+beforeAll(async () => {
   httpServer = createServer();
   wss = new WsServer({ server: httpServer });
 
-  wss.on('connection', (ws: WebSocket) => {
+  wss.on('connection', (ws: ClientSocket) => {
     clientSubscriptions.set(ws, {
       assets: new Set(),
       wildcardAll: false,
@@ -41,15 +42,22 @@ beforeAll((done) => {
     });
   });
 
-  httpServer.listen(WS_PORT, done);
+  await new Promise<void>((resolve, reject) => {
+    httpServer.once('error', reject);
+    httpServer.listen(WS_PORT, resolve);
+  });
 });
 
-afterAll((done) => {
-  wss.close();
-  httpServer.close(done);
+afterAll(async () => {
+  // Terminate any lingering client connections so the HTTP server can close.
+  for (const client of wss.clients) {
+    client.terminate();
+  }
+  await new Promise<void>((resolve) => wss.close(() => resolve()));
+  await new Promise<void>((resolve) => httpServer.close(() => resolve()));
 });
 
-function handleSubscriptionMessage(ws: WebSocket, message: any) {
+function handleSubscriptionMessage(ws: ClientSocket, message: any) {
   const sub = clientSubscriptions.get(ws);
   if (!sub) return;
 
@@ -229,80 +237,110 @@ describe('Issue #231: WebSocket Per-Asset Subscription Filtering', () => {
     it('should only send messages to subscribed asset clients', async () => {
       const client1 = new WebSocket(`ws://localhost:${WS_PORT}`);
       const client2 = new WebSocket(`ws://localhost:${WS_PORT}`);
-      const receivedMessages1: any[] = [];
-      const receivedMessages2: any[] = [];
+      const received1: any[] = [];
+      const received2: any[] = [];
 
-      await new Promise((resolve) => {
+      // Attach listeners BEFORE any broadcast so no price update is missed.
+      client1.on('message', (data: string) => received1.push(JSON.parse(data)));
+      client2.on('message', (data: string) => received2.push(JSON.parse(data)));
+
+      // Broadcast only once the server has acked each subscription.
+      let subscribed1 = false;
+      let subscribed2 = false;
+      const maybeBroadcast = () => {
+        if (!subscribed1 || !subscribed2) return;
+        broadcastToSubscribers({ asset: 'XLM', price: 0.50 });
+        broadcastToSubscribers({ asset: 'USDC', price: 1.00 });
+        broadcastToSubscribers({ asset: 'BTC', price: 45000 });
+      };
+
+      await new Promise<void>((resolve) => {
         let openCount = 0;
+        const allOpen = () => {
+          openCount++;
+          if (openCount === 2) maybeBroadcast();
+        };
 
         client1.on('open', () => {
-          openCount++;
           client1.send(JSON.stringify({ type: 'subscribe', asset: 'XLM' }));
-          if (openCount === 2) subscriptionDone();
+          allOpen();
         });
-
         client2.on('open', () => {
-          openCount++;
           client2.send(JSON.stringify({ type: 'subscribe', asset: 'USDC' }));
-          if (openCount === 2) subscriptionDone();
+          allOpen();
         });
 
-        function subscriptionDone() {
-          setTimeout(() => {
-            broadcastToSubscribers({ asset: 'XLM', price: 0.50 });
-            broadcastToSubscribers({ asset: 'USDC', price: 1.00 });
-            broadcastToSubscribers({ asset: 'BTC', price: 45000 });
+        const onAck = (target: 'client1' | 'client2') => (data: string) => {
+          try {
+            const m = JSON.parse(data);
+            if (m.type === 'subscribed') {
+              if (target === 'client1') subscribed1 = true;
+              else subscribed2 = true;
+              maybeBroadcast();
+            }
+          } catch {
+            // ignore non-JSON
+          }
+        };
+        client1.on('message', onAck('client1'));
+        client2.on('message', onAck('client2'));
 
-            setTimeout(() => {
-              client1.on('message', (data: string) => {
-                receivedMessages1.push(JSON.parse(data));
-              });
-              client2.on('message', (data: string) => {
-                receivedMessages2.push(JSON.parse(data));
-              });
-
-              const xlmMessages = receivedMessages1.filter((m) => m.asset === 'XLM');
-              const btcMessages = receivedMessages1.filter((m) => m.asset === 'BTC');
-              const usdcMessages = receivedMessages2.filter((m) => m.asset === 'USDC');
-
-              expect(xlmMessages.length).toBeGreaterThan(0);
-              expect(btcMessages.length).toBe(0);
-              expect(usdcMessages.length).toBeGreaterThan(0);
-
-              client1.close();
-              client2.close();
-              resolve(null);
-            }, 100);
-          }, 100);
-        }
+        // Fallback timeout so a regression fails fast instead of hanging.
+        setTimeout(() => {
+          client1.close();
+          client2.close();
+          resolve();
+        }, 3000);
       });
+
+      const priceMessages1 = received1.filter((m) => typeof m.price === 'number');
+      const priceMessages2 = received2.filter((m) => typeof m.price === 'number');
+      expect(priceMessages1.some((m) => m.asset === 'XLM')).toBe(true);
+      expect(priceMessages1.some((m) => m.asset === 'BTC')).toBe(false);
+      expect(priceMessages2.some((m) => m.asset === 'USDC')).toBe(true);
+      expect(priceMessages2.some((m) => m.asset === 'BTC')).toBe(false);
     });
 
     it('should send all updates to wildcard subscribers', async () => {
       const ws = new WebSocket(`ws://localhost:${WS_PORT}`);
-      const receivedMessages: any[] = [];
+      const received: any[] = [];
 
-      await new Promise((resolve) => {
+      ws.on('message', (data: string) => received.push(JSON.parse(data)));
+
+      await new Promise<void>((resolve) => {
         ws.on('open', () => {
           ws.send(JSON.stringify({ type: 'subscribe', asset: '*' }));
+        });
 
-          setTimeout(() => {
+        const onAck = (data: string) => {
+          try {
+            const m = JSON.parse(data);
+            if (m.type !== 'subscribed') return;
+            ws.removeListener('message', onAck);
             broadcastToSubscribers({ asset: 'XLM', price: 0.50 });
             broadcastToSubscribers({ asset: 'USDC', price: 1.00 });
             broadcastToSubscribers({ asset: 'BTC', price: 45000 });
-
             setTimeout(() => {
-              ws.on('message', (data: string) => {
-                receivedMessages.push(JSON.parse(data));
-              });
-
-              expect(receivedMessages.length).toBeGreaterThanOrEqual(0);
               ws.close();
-              resolve(null);
+              resolve();
             }, 100);
-          }, 100);
-        });
+          } catch {
+            // ignore non-JSON
+          }
+        };
+        ws.on('message', onAck);
+
+        // Fallback timeout so a regression fails fast instead of hanging.
+        setTimeout(() => {
+          ws.close();
+          resolve();
+        }, 3000);
       });
+
+      const priceMessages = received.filter((m) => typeof m.price === 'number');
+      expect(priceMessages.some((m) => m.asset === 'XLM')).toBe(true);
+      expect(priceMessages.some((m) => m.asset === 'USDC')).toBe(true);
+      expect(priceMessages.some((m) => m.asset === 'BTC')).toBe(true);
     });
   });
 

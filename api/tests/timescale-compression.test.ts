@@ -68,8 +68,8 @@ describe('TimescaleDB Compression Policies', () => {
              timescaledb.compress_orderby = '${orderBy.join(',')}');
       `;
 
-      expect(sql).toContain('segment_by');
-      expect(sql).toContain('order_by');
+      expect(sql).toContain('compress_segmentby');
+      expect(sql).toContain('compress_orderby');
       expect(sql).toContain('asset');
       expect(sql).toContain('source');
     });
@@ -185,7 +185,7 @@ describe('TimescaleDB Compression Policies', () => {
       const afterCompression = 100000000;
       const reductionPercent = ((beforeCompression - afterCompression) / beforeCompression) * 100;
 
-      expect(reductionPercent).toBeGreaterThan(90);
+      expect(reductionPercent).toBeGreaterThanOrEqual(90);
       expect(reductionPercent).toBe(90);
     });
 

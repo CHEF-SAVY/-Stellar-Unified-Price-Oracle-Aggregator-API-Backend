@@ -2,7 +2,7 @@ import { config } from './infrastructure/config';
 import { logger } from './observability/logger';
 import { ChainlinkSource, RedstoneSource, BandSource, ReflectorSource } from './oracle-sources';
 import { PriceAggregator } from './price-aggregation/aggregator';
-import { AggregatedPrice, NormalizedPrice } from './infrastructure/types';
+import { AggregatedPrice } from './infrastructure/types';
 import { ContractPublisher } from './contract-publishing/publisher';
 import { appendHistoricalPrice } from './persistence/history';
 import { appendUptimeSnapshot } from './persistence/uptime-history';

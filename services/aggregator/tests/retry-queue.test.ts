@@ -136,34 +136,43 @@ describe('Submission Retry Queue (Issue #227)', () => {
   });
 
   it('should calculate jittered exponential backoff', async () => {
-    const queue2 = new SubmissionRetryQueue({
-      baseBackoffMs: 1000,
-      maxBackoffMs: 30000,
-    });
+    vi.useFakeTimers();
+    try {
+      const queue2 = new SubmissionRetryQueue({
+        baseBackoffMs: 1000,
+        maxBackoffMs: 30000,
+      });
 
-    const key = queue2.enqueue({
-      asset: 'BACKOFF_TEST',
-      price: BigInt('1000'),
-      decimals: 8,
-      timestamp: Math.floor(Date.now() / 1000),
-    });
+      const key = queue2.enqueue({
+        asset: 'BACKOFF_TEST',
+        price: BigInt('1000'),
+        decimals: 8,
+        timestamp: Math.floor(Date.now() / 1000),
+      });
 
-    const baseTime = Date.now();
-    const item1 = queue2.getItem(key)!;
-    await queue2.processQueue();
-    const item2 = queue2.getItem(key)!;
+      await queue2.processQueue();
+      const item2 = queue2.getItem(key)!;
 
-    const backoff1 = item2.nextRetryAt - baseTime;
-    expect(backoff1).toBeGreaterThanOrEqual(1000);
-    expect(backoff1).toBeLessThanOrEqual(2000);
+      // Attempt 1: exponential = 1000, jitter in [0, 1000) -> [1000, 2000).
+      const backoff1 = item2.nextRetryAt - Date.now();
+      expect(backoff1).toBeGreaterThanOrEqual(1000);
+      expect(backoff1).toBeLessThan(2000);
 
-    await new Promise(resolve => setTimeout(resolve, 1100));
-    await queue2.processQueue();
+      // Advance past the first retry time, then process again.
+      vi.advanceTimersByTime(backoff1 + 1);
+      await queue2.processQueue();
 
-    const item3 = queue2.getItem(key);
-    if (item3) {
-      const backoff2 = item3.nextRetryAt - Date.now();
+      const item3 = queue2.getItem(key);
+      expect(item3).toBeDefined();
+
+      // Attempt 2: exponential = 2000, jitter in [0, 1000) -> [2000, 3000).
+      const backoff2 = item3!.nextRetryAt - Date.now();
       expect(backoff2).toBeGreaterThanOrEqual(2000);
+      expect(backoff2).toBeLessThan(3000);
+
+      queue2.stop();
+    } finally {
+      vi.useRealTimers();
     }
   });
 

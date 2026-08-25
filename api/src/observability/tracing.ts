@@ -1,6 +1,6 @@
 import { NodeSDK } from '@opentelemetry/sdk-node';
 import { getNodeAutoInstrumentations } from '@opentelemetry/auto-instrumentations-node';
-import { JaegerExporter } from '@opentelemetry/exporter-jaeger';
+import { OTLPTraceExporter } from '@opentelemetry/exporter-trace-otlp-http';
 import { TraceIdRatioBasedSampler } from '@opentelemetry/sdk-trace-node';
 import { resourceFromAttributes } from '@opentelemetry/resources';
 import { SemanticResourceAttributes } from '@opentelemetry/semantic-conventions';
@@ -9,7 +9,8 @@ import { logger } from './logger';
 
 export interface TracingConfig {
   enabled: boolean;
-  jaegerEndpoint?: string;
+  /** OTLP/HTTP endpoint (e.g. a Jaeger, Tempo, or collector instance). */
+  otlpEndpoint?: string;
   samplingRate?: number;
   serviceName?: string;
 }
@@ -22,13 +23,13 @@ export function initializeTracing(config: TracingConfig): void {
     return;
   }
 
-  const jaegerEndpoint = config.jaegerEndpoint || 'http://localhost:14268/api/traces';
+  const otlpEndpoint = config.otlpEndpoint || 'http://localhost:4318/v1/traces';
   const samplingRate = config.samplingRate || 1.0;
   const serviceName = config.serviceName || 'stellar-oracle-api';
 
   try {
-    const jaegerExporter = new JaegerExporter({
-      endpoint: jaegerEndpoint,
+    const traceExporter = new OTLPTraceExporter({
+      url: otlpEndpoint,
     });
 
     const resource = resourceFromAttributes({
@@ -38,13 +39,13 @@ export function initializeTracing(config: TracingConfig): void {
 
     sdk = new NodeSDK({
       resource,
-      traceExporter: jaegerExporter,
+      traceExporter,
       instrumentations: [getNodeAutoInstrumentations()],
       sampler: new TraceIdRatioBasedSampler(Math.min(samplingRate, 1.0)),
     });
 
     sdk.start();
-    logger.info(`Distributed tracing initialized (endpoint: ${jaegerEndpoint}, sampling: ${samplingRate})`);
+    logger.info(`Distributed tracing initialized (endpoint: ${otlpEndpoint}, sampling: ${samplingRate})`);
 
     process.on('SIGTERM', () => {
       sdk?.shutdown()

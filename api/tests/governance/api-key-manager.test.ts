@@ -798,7 +798,7 @@ describe('ApiKeyManager - Env-based Key Loading', () => {
       const mgr = new ApiKeyManager();
       const keys = mgr.getAllKeys();
 
-      const loaded = keys.find((k) => k.keyPrefix === 'sk_free_test...');
+      const loaded = keys.find((k) => k.keyPrefix === 'sk_free_test');
       expect(loaded).toBeDefined();
       expect(loaded?.description).toBe('test-key');
       expect(loaded?.tier).toBe('free');
@@ -967,11 +967,12 @@ describe('ApiKeyManager - getAllKeys()', () => {
     expect(keys.some((k) => k.keyHash === keyHash)).toBe(false);
   });
 
-  it('should have keyPrefix ending with "..."', () => {
+  it('should return the raw 12-char key prefix (no ellipsis)', () => {
     mgr.generateKey(100, 'ellipsis', 'free');
     const keys = mgr.getAllKeys();
     for (const k of keys) {
-      expect(k.keyPrefix.endsWith('...')).toBe(true);
+      expect(k.keyPrefix.length).toBe(12);
+      expect(k.keyPrefix.endsWith('...')).toBe(false);
     }
   });
 });

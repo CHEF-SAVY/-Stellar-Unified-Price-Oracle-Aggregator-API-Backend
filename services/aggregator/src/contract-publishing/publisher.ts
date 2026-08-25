@@ -10,7 +10,6 @@ import {
 import { config } from '../infrastructure/config';
 import { logger } from '../observability/logger';
 import { AggregatedPrice } from '../infrastructure/types';
-import { MerkleTree, BatchPriceEntry } from '../infrastructure/merkle';
 import { SubmissionRetryQueue } from './retry-queue';
 
 interface ContractCallLog {
@@ -299,74 +298,5 @@ export class ContractPublisher {
 
   getRetryQueueSize(): number {
     return this.retryQueue.getQueueSize();
-  }
-
-  // ── Internal helpers ────────────────────────────────────────────────────────
-
-  private async fetchBatchNonce(): Promise<number | null> {
-    try {
-      const account = await this.server.getAccount(this.keypair.publicKey());
-      const tx = new TransactionBuilder(account, {
-        fee: '100',
-        networkPassphrase: this.networkPassphrase,
-      })
-        .addOperation(
-          Operation.invokeContractFunction({
-            contract: this.contractId,
-            function: 'get_batch_nonce',
-            args: [],
-          }),
-        )
-        .setTimeout(30)
-        .build();
-
-      const sim: any = await this.server.simulateTransaction(tx);
-      if (sim.error || !sim.result) return null;
-
-      const val = sim.result.retval;
-      if (val.switch().name === 'scvU64') {
-        return Number(val.u64().toBigInt());
-      }
-      return null;
-    } catch {
-      return null;
-    }
-  }
-
-  private async callContract(
-    fn: string,
-    args: xdr.ScVal[],
-  ): Promise<boolean> {
-    try {
-      const account = await this.server.getAccount(this.keypair.publicKey());
-      const tx = new TransactionBuilder(account, {
-        fee: '100',
-        networkPassphrase: this.networkPassphrase,
-      })
-        .addOperation(
-          Operation.invokeContractFunction({
-            contract: this.contractId,
-            function: fn,
-            args,
-          }),
-        )
-        .setTimeout(30)
-        .build();
-
-      tx.sign(this.keypair);
-
-      const sim: any = await this.server.simulateTransaction(tx);
-      if (sim.error) {
-        logger.error(`[Publisher] ${fn} simulate error: ${sim.error}`);
-        return false;
-      }
-
-      const resp = await this.server.sendTransaction(tx);
-      logger.debug(`[Publisher] ${fn} tx: ${resp.hash}`);
-      return true;
-    } catch (err) {
-      logger.error(`[Publisher] ${fn} failed`, err);
-      return false;
-    }
   }
 }

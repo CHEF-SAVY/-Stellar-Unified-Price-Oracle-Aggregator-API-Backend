@@ -170,8 +170,10 @@ export class ApiKeyManager {
   }
 
   getAllKeys(): Array<{ keyPrefix: string; keyHash: string; createdAt: number; lastUsed: number | null; requestCount: number; isActive: boolean; rateLimitPerMin: number; tier: KeyTier; role: Role; description?: string }> {
+    // The non-secret display prefix is returned as-is (no ellipsis suffix) so
+    // consumers can match keys by prefix without string munging.
     return Array.from(this.keys.values()).map((m) => ({
-      keyPrefix: m.keyPrefix + '...',
+      keyPrefix: m.keyPrefix,
       keyHash: m.keyHash,
       createdAt: m.createdAt,
       lastUsed: m.lastUsed,

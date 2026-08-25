@@ -98,7 +98,7 @@ beforeAll(async () => {
 
   // Sources endpoint with HATEOAS links
   app.get('/api/v1/sources', (req, res) => {
-    const pricesLinks = links.prices();
+    const sourcesLinks = links.sources();
     res.json({
       success: true,
       data: withLinks(
@@ -108,7 +108,7 @@ beforeAll(async () => {
             { name: 'horizon', priority: 2 },
           ],
         },
-        pricesLinks,
+        sourcesLinks,
       ),
     });
   });

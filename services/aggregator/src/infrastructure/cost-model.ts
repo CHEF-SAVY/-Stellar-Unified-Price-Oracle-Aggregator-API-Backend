@@ -21,7 +21,8 @@ let lastResetDate = new Date().toISOString().slice(0, 10);
 function maybeReset(): void {
   const today = new Date().toISOString().slice(0, 10);
   if (today !== lastResetDate) {
-    for (const k of Object.keys(dailyCounts)) dailyCounts[k] = 0;
+    // Drop entries entirely so a fresh day reports an empty map.
+    for (const k of Object.keys(dailyCounts)) delete dailyCounts[k];
     lastResetDate = today;
   }
 }
@@ -53,4 +54,13 @@ export function getDailyCount(source: string): number {
 export function getDailyCounts(): Record<string, number> {
   maybeReset();
   return { ...dailyCounts };
+}
+
+/**
+ * Clear all tracked call counts. Intended for tests and for operators who
+ * need to zero the counters without waiting for the UTC rollover.
+ */
+export function resetDailyCounts(): void {
+  for (const k of Object.keys(dailyCounts)) delete dailyCounts[k];
+  lastResetDate = new Date().toISOString().slice(0, 10);
 }

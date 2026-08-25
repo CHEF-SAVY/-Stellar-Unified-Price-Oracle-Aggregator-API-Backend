@@ -28,11 +28,7 @@ import { auditLog } from './audit-logger';
 import { logger } from '../observability/logger';
 import * as proposalService from './proposal-service';
 import type { ProposalAction } from './proposal-types';
-import {
-  formatAction,
-  statusLabel,
-  statusColor,
-} from './proposal-types';
+import { formatAction } from './proposal-types';
 
 const ADMIN_KEY_PREFIX = process.env.ADMIN_KEY_PREFIX || 'admin_';
 const router = Router();

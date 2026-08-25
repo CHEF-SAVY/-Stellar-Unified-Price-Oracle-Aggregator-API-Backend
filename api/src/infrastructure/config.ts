@@ -106,7 +106,7 @@ export const config = {
   },
   tracing: {
     enabled: process.env.TRACING_ENABLED === 'true',
-    jaegerEndpoint: process.env.JAEGER_ENDPOINT,
+    otlpEndpoint: process.env.OTLP_TRACE_ENDPOINT || process.env.JAEGER_ENDPOINT,
     samplingRate: parseFloat(process.env.TRACING_SAMPLING_RATE || '1.0'),
     serviceName: process.env.TRACING_SERVICE_NAME || 'stellar-oracle-api',
   },

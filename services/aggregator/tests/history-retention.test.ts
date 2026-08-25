@@ -168,9 +168,10 @@ describe('History Retention', () => {
 
       const pruned = manager.pruneHistory(history);
 
+      // The manager keeps the NEWEST maxEntries entries (slice(-maxEntries)).
       expect(pruned).toHaveLength(maxEntries);
-      expect(pruned[0].price).toBe('100');
-      expect(pruned[maxEntries - 1].price).toBe('199');
+      expect(pruned[0].price).toBe('150');
+      expect(pruned[maxEntries - 1].price).toBe('249');
     });
 
     it('should keep newest entries when exceeding max', () => {
@@ -385,17 +386,17 @@ describe('History Retention', () => {
 
       const now = Math.floor(Date.now() / 1000);
 
+      // All timestamps are within the 86400s retention window.
       const history = Array.from({ length: 500 }, (_, i) => ({
         price: (100 + i).toString(),
         decimals: 8,
         source: 'chainlink',
-        timestamp: now - 86400 * 2 + i,
+        timestamp: now - 3600 + i,
       }));
 
       const pruned = manager.pruneHistoryWithTime(history, now * 1000);
 
-      expect(pruned.length).toBeGreaterThan(0);
-      expect(pruned.length).toBeLessThanOrEqual(500);
+      expect(pruned.length).toBe(500);
     });
 
     it('should handle aggressive retention config', () => {

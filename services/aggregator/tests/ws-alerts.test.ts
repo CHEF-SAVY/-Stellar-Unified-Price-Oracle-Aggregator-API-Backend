@@ -28,9 +28,14 @@ describe('WebSocket Alert Broadcasting (Issue #228)', () => {
     wss.stop();
   });
 
+  // The aggregator WS guard requires an Origin header by default; the ws
+  // client library does not send one unless asked, so provide it explicitly.
+  const connect = (): WebSocket =>
+    new WebSocket(`ws://localhost:${WS_PORT + 1}`, { origin: 'http://localhost' });
+
   it('should broadcast price deviation alerts to WebSocket clients', async () => {
     return new Promise<void>((done) => {
-      const client = new WebSocket(`ws://localhost:${WS_PORT + 1}`);
+      const client = connect();
       let alertReceived = false;
 
       client.on('open', () => {
@@ -75,7 +80,7 @@ describe('WebSocket Alert Broadcasting (Issue #228)', () => {
 
   it('should broadcast source down alerts', async () => {
     return new Promise<void>((done) => {
-      const client = new WebSocket(`ws://localhost:${WS_PORT + 1}`);
+      const client = connect();
       let alertReceived = false;
 
       client.on('open', () => {
@@ -115,7 +120,7 @@ describe('WebSocket Alert Broadcasting (Issue #228)', () => {
 
   it('should broadcast stale data alerts', async () => {
     return new Promise<void>((done) => {
-      const client = new WebSocket(`ws://localhost:${WS_PORT + 1}`);
+      const client = connect();
       let alertReceived = false;
 
       client.on('open', () => {
@@ -155,8 +160,8 @@ describe('WebSocket Alert Broadcasting (Issue #228)', () => {
 
   it('should broadcast alerts to multiple connected clients', async () => {
     return new Promise<void>((done) => {
-      const client1 = new WebSocket(`ws://localhost:${WS_PORT + 1}`);
-      const client2 = new WebSocket(`ws://localhost:${WS_PORT + 1}`);
+      const client1 = connect();
+      const client2 = connect();
       let client1Received = false;
       let client2Received = false;
 
@@ -216,7 +221,7 @@ describe('WebSocket Alert Broadcasting (Issue #228)', () => {
 
   it('should include alert metadata in broadcasts', async () => {
     return new Promise<void>((done) => {
-      const client = new WebSocket(`ws://localhost:${WS_PORT + 1}`);
+      const client = connect();
 
       client.on('open', () => {
         const alert: AlertEvent = {

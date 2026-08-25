@@ -12,6 +12,7 @@ import { BackupService } from '../infrastructure/backup';
 import { config } from '../infrastructure/config';
 import type { Role } from './rbac';
 import { eventBus } from '../domain-events';
+import { sourceCircuitBreakers } from '../infrastructure/source-circuit-breakers';
 
 const router = Router();
 const ADMIN_KEY_PREFIX = process.env.ADMIN_KEY_PREFIX || 'admin_';
@@ -485,6 +486,52 @@ router.post('/backup/restore', async (req: Request, res: Response) => {
       error: { code: 'RESTORE_FAILED', message: 'Failed to restore backup' },
     });
   }
+});
+
+// ── Circuit Breaker Management (issue #233) ───────────────────────────────────
+
+router.get('/circuit-breakers', async (_req: Request, res: Response) => {
+  try {
+    if (isDbAvailable()) {
+      const db = await getDb();
+      sourceCircuitBreakers.setDatabaseStateProvider(() => db.getPoolStats().primary.circuitState as 'closed' | 'open' | 'half-open');
+    }
+    const states = sourceCircuitBreakers.statuses();
+    res.json({ success: true, data: { states, count: states.length } });
+  } catch (err) {
+    logger.error('Failed to list circuit breaker states', err);
+    res.status(500).json({
+      success: false,
+      error: { code: 'CIRCUIT_BREAKER_LIST_FAILED', message: 'Failed to list circuit breaker states' },
+    });
+  }
+});
+
+router.post('/circuit-breakers/:source/reset', async (req: Request, res: Response) => {
+  const { source } = req.params;
+  if (!source) {
+    return res.status(400).json({
+      success: false,
+      error: { code: 'INVALID_SOURCE', message: 'A circuit breaker source is required' },
+    });
+  }
+
+  const reset = sourceCircuitBreakers.reset(source);
+  if (!reset) {
+    return res.status(404).json({
+      success: false,
+      error: { code: 'SOURCE_NOT_FOUND', message: `No circuit breaker registered for source '${source}'` },
+    });
+  }
+
+  logger.info(`Admin ${req.apiKey?.substring(0, 8)}... reset circuit breaker for ${source}`);
+  res.json({ success: true, data: { source, status: sourceCircuitBreakers.status(source) } });
+});
+
+router.post('/circuit-breakers/reset-all', (_req: Request, res: Response) => {
+  const resetCount = sourceCircuitBreakers.resetAll();
+  logger.info(`Admin ${_req.apiKey?.substring(0, 8)}... reset ${resetCount} circuit breaker(s)`);
+  res.json({ success: true, data: { resetCount } });
 });
 
 // ── Admin Health ──────────────────────────────────────────────────────────────

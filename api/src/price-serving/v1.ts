@@ -166,9 +166,10 @@ router.get('/prices/:asset', async (req: Request, res: Response) => {
   const price = prices.find((p) => p.asset === asset);
 
   if (!price) {
+    // Issue #218: a missing asset is a client error (404), not a server error.
     return res.status(404).json({
       success: false,
-      error: { code: 'INTERNAL_ERROR', message: 'Failed to fetch price' },
+      error: { code: 'PRICE_NOT_FOUND', message: 'Price not found for the requested asset' },
     });
   }
 

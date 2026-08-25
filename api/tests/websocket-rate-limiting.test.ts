@@ -203,11 +203,12 @@ describe('WebSocket Rate Limiting', () => {
     it('should allow connections within limit', () => {
       const ip = '192.168.1.1';
 
+      // checkConnectionCount already increments the counter on success.
       for (let i = 0; i < config.connectionsPerIp; i++) {
         const allowed = limiter.checkConnectionCount(ip);
         expect(allowed).toBe(true);
-        limiter.incrementConnection(ip);
       }
+      expect(limiter.getConnectionCount(ip)).toBe(config.connectionsPerIp);
     });
 
     it('should block connections exceeding limit', () => {
@@ -215,7 +216,6 @@ describe('WebSocket Rate Limiting', () => {
 
       for (let i = 0; i < config.connectionsPerIp; i++) {
         limiter.checkConnectionCount(ip);
-        limiter.incrementConnection(ip);
       }
 
       const blocked = limiter.checkConnectionCount(ip);
@@ -227,7 +227,6 @@ describe('WebSocket Rate Limiting', () => {
 
       for (let i = 0; i < config.connectionsPerIp; i++) {
         limiter.checkConnectionCount(ip);
-        limiter.incrementConnection(ip);
       }
 
       expect(limiter.getConnectionCount(ip)).toBe(config.connectionsPerIp);

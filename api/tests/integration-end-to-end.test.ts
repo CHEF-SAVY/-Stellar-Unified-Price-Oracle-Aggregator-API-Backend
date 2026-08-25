@@ -64,6 +64,11 @@ async function createApp(writeData = true) {
     const path = await import('path');
     const DATA_DIR = path.resolve(__dirname, '..', 'data');
     fs.mkdirSync(DATA_DIR, { recursive: true });
+    // Clear leftovers from previous runs so stale files can't flip /health
+    // into "degraded" and make this suite order-dependent.
+    for (const f of fs.readdirSync(DATA_DIR)) {
+      if (f.startsWith('history-')) fs.unlinkSync(path.join(DATA_DIR, f));
+    }
     const ts = Math.floor(Date.now() / 1000);
     const entries = [
       { price: '0.1100000', decimals: 7, source: 'chainlink', timestamp: ts - 180 },

@@ -5,10 +5,12 @@ import {
   getBudgetUtilization,
   getDailyCount,
   getDailyCounts,
+  resetDailyCounts,
 } from '../src/infrastructure/cost-model';
 
 describe('Cost Model', () => {
   beforeEach(() => {
+    resetDailyCounts();
     vi.useFakeTimers();
     vi.setSystemTime(new Date('2024-01-15T00:00:00Z'));
   });
