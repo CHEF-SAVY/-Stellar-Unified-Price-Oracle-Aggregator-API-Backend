@@ -613,7 +613,7 @@ fn calculate_usd_price(env: &Env, asset: &String, price: i128, decimals: u32) ->
     }
 
     let usdc = String::from_str(env, "USDC");
-    if let Some(usdc_anchor) = storage::get_latest_price(env, &usdc) {
+    if let Some(_usdc_anchor) = storage::get_latest_price(env, &usdc) {
         if asset == &usdc {
             return Some(10i128.pow(decimals));
         }
@@ -629,6 +629,5 @@ fn calculate_usd_price(env: &Env, asset: &String, price: i128, decimals: u32) ->
     // xlm_price.price is scaled by xlm_price.decimals.
     let usd_value = (price * xlm_price.price)
         .checked_div(10i128.pow(xlm_price.decimals))?;
-        .checked_div(10i128.pow(usdc_anchor.decimals))?;
     Some(usd_value)
 }

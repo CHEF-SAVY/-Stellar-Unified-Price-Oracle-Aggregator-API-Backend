@@ -112,45 +112,6 @@ pub enum ProposalAction {
     UpdateGovernanceConfig(GovernanceConfig),
 }
 
-// ── Governance types ─────────────────────────────────────────────────────────
-
-#[contracttype]
-#[derive(Clone, Debug)]
-pub struct GovernanceConfig {
-    pub token: Address,
-    pub proposal_threshold: i128,
-    pub voting_period: u64,
-    pub timelock_delay: u64,
-    pub quorum: i128,
-    pub guardian: Address,
-}
-
-#[contracttype]
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub enum ProposalStatus {
-    Active,
-    Queued,
-    Ready,
-    Executed,
-    Defeated,
-    Cancelled,
-}
-
-#[contracttype]
-#[derive(Clone, Debug)]
-pub struct GovernanceProposal {
-    pub id: u32,
-    pub proposer: Address,
-    pub action: ProposalAction,
-    pub description: String,
-    pub votes_for: i128,
-    pub votes_against: i128,
-    pub voting_start: u64,
-    pub voting_end: u64,
-    pub execution_time: u64,
-    pub status: ProposalStatus,
-}
-
 // ── Multi-sig types ──────────────────────────────────────────────────────────
 
 #[contracttype]

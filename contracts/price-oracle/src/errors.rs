@@ -35,4 +35,5 @@ pub enum OracleError {
     InvalidMerkleProof = 26,
     BatchNonceMismatch = 27,
     BatchRootNotFound = 28,
+    InvalidPrice = 29,
 }

@@ -43,8 +43,8 @@ mod bench {
         let budget = env.budget();
         println!(
             "[BENCH] {label}: cpu_instructions={}, mem_bytes={}",
-            budget.cpu_instruction_count(),
-            budget.memory_bytes_count(),
+            budget.cpu_instruction_cost(),
+            budget.memory_bytes_cost(),
         );
     }
 
