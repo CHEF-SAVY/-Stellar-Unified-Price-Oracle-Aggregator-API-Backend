@@ -169,6 +169,20 @@ pub fn get_price_history(env: &Env, asset: &String) -> Vec<PriceDataPoint> {
         .unwrap_or_else(|| Vec::new(env))
 }
 
+// Issue #376 — TTL / rent extension. Called periodically by an off-chain job
+// so PriceHistory (persistent) and the contract instance (Admin, GovConfig,
+// proposals, etc. — all instance storage) never hit their TTL floor and get
+// archived/evicted.
+pub fn extend_price_history_ttl(env: &Env, asset: &String, threshold: u32, extend_to: u32) {
+    env.storage()
+        .persistent()
+        .extend_ttl(&DataKey::PriceHistory(asset.clone()), threshold, extend_to);
+}
+
+pub fn extend_instance_ttl(env: &Env, threshold: u32, extend_to: u32) {
+    env.storage().instance().extend_ttl(threshold, extend_to);
+}
+
 pub fn get_all_assets(env: &Env) -> Vec<String> {
     env.storage()
         .instance()

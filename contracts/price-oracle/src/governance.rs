@@ -292,6 +292,13 @@ impl GovernanceContract {
     pub fn get_governance_config(env: Env) -> Option<GovernanceConfig> {
         storage::get_gov_config(&env)
     }
+
+    /// Issue #376 — extend this contract instance's TTL (covers GovConfig and
+    /// every GovernanceProposal, which live in instance storage). Permissionless
+    /// for the same reason as PriceOracleContract's extend_instance_ttl.
+    pub fn extend_instance_ttl(env: Env, threshold: u32, extend_to: u32) {
+        storage::extend_instance_ttl(&env, threshold, extend_to);
+    }
 }
 
 // ── Validation ────────────────────────────────────────────────────────────────

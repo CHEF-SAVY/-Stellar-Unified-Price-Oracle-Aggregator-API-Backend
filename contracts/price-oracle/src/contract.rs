@@ -369,6 +369,21 @@ impl PriceOracleContract {
         result
     }
 
+    // -------------------------------------------------------------------------
+    // Issue #376 — TTL / rent extension. Permissionless: bumping TTL is never
+    // harmful, and gating it behind auth would only make the scheduled job
+    // more brittle. Intended to be called periodically (see docs/RENT_AND_TTL.md)
+    // for every tracked asset plus once for the contract instance.
+    // -------------------------------------------------------------------------
+
+    pub fn extend_price_history_ttl(env: Env, asset: String, threshold: u32, extend_to: u32) {
+        storage::extend_price_history_ttl(&env, &asset, threshold, extend_to);
+    }
+
+    pub fn extend_instance_ttl(env: Env, threshold: u32, extend_to: u32) {
+        storage::extend_instance_ttl(&env, threshold, extend_to);
+    }
+
     // ── Admin functions ───────────────────────────────────────────────────────
 
     pub fn add_oracle_source(
