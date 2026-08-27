@@ -252,4 +252,10 @@ pub enum DataKey {
     PostQuantumAdminKey(String),
     PostQuantumKeyLog(u32),
     PostQuantumKeyLogCount,
+    // Issue #375 — proxy upgrade timelock + canary
+    PendingUpgradeHash,
+    PendingUpgradeEta,
+    UpgradeApprovals,
+    CanaryImplementation,
+    CanaryTrafficShareBps,
 }
