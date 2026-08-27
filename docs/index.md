@@ -8,6 +8,8 @@ Welcome to the Stellar Unified Price Oracle Aggregator API documentation.
 - [ADRs](./adr/) — Architecture Decision Records
 - [Runbooks](./runbooks/) — operational runbooks
 - [OpenAPI spec](../api/src/services/openapi.ts) — Swagger UI at `/api/v1/docs`
+- [Development Setup & Contribution Guide](./DEVELOPMENT.md)
+- [Security](./security/) — pentest scope and audit findings tracking
 
 ## Architecture overview
 
