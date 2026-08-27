@@ -358,6 +358,9 @@ impl ProxyContract {
         history.push_back(data_point.clone());
         storage::set_price_history(&env, &asset, &history);
 
+        env.events()
+            .publish(("price_submitted", asset, source), (price, decimals, timestamp));
+
         Ok(data_point)
     }
 

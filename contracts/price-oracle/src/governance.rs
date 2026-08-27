@@ -120,6 +120,7 @@ impl GovernanceContract {
         };
 
         storage::set_gov_proposal(&env, &proposal);
+        env.events().publish(("gov_proposed", id, proposer), ());
         Ok(id)
     }
 
@@ -158,6 +159,7 @@ impl GovernanceContract {
 
         storage::record_vote(&env, proposal_id, &voter, support);
         storage::set_gov_proposal(&env, &proposal);
+        env.events().publish(("gov_voted", proposal_id, voter), support);
         Ok(())
     }
 
@@ -174,6 +176,7 @@ impl GovernanceContract {
         match proposal.status {
             ProposalStatus::Queued | ProposalStatus::Ready => {
                 storage::set_gov_proposal(&env, &proposal);
+                env.events().publish(("gov_queued", proposal_id), proposal.execution_time);
                 Ok(())
             }
             ProposalStatus::Defeated => Err(OracleError::ProposalDefeated),
@@ -209,6 +212,7 @@ impl GovernanceContract {
         storage::set_gov_proposal(&env, &proposal);
 
         apply_action(&env, &proposal.action);
+        env.events().publish(("gov_executed", proposal_id), ());
         Ok(())
     }
 
@@ -234,6 +238,7 @@ impl GovernanceContract {
 
         proposal.status = ProposalStatus::Cancelled;
         storage::set_gov_proposal(&env, &proposal);
+        env.events().publish(("gov_cancelled", proposal_id, caller), ());
         Ok(())
     }
 
@@ -264,6 +269,7 @@ impl GovernanceContract {
         storage::set_gov_proposal(&env, &proposal);
 
         apply_action(&env, &proposal.action);
+        env.events().publish(("gov_emergency_executed", proposal_id, guardian), ());
         Ok(())
     }
 

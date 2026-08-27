@@ -72,6 +72,10 @@ impl PriceOracleContract {
 
         storage::set_latest_price(&env, &asset, &data_point);
         append_history(&env, &asset, data_point.clone());
+
+        env.events()
+            .publish(("price_submitted", asset, source), (price, decimals, timestamp));
+
         Ok(data_point)
     }
 
@@ -108,6 +112,9 @@ impl PriceOracleContract {
 
         storage::set_batch_root(&env, nonce, &root);
         let new_nonce = storage::increment_batch_nonce(&env);
+
+        env.events().publish(("batch_committed", source, nonce), root);
+
         Ok(new_nonce)
     }
 
@@ -144,6 +151,12 @@ impl PriceOracleContract {
 
         storage::set_latest_price(&env, &entry.asset, &data_point);
         append_history(&env, &entry.asset, data_point.clone());
+
+        env.events().publish(
+            ("batch_entry_applied", entry.asset.clone(), entry.source.clone()),
+            (batch_nonce, entry.price, entry.decimals, entry.timestamp),
+        );
+
         Ok(data_point)
     }
 
