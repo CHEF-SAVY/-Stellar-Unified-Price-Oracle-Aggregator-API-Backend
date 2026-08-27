@@ -35,4 +35,9 @@ pub enum OracleError {
     InvalidMerkleProof = 26,
     BatchNonceMismatch = 27,
     BatchRootNotFound = 28,
+    // Issue #375 — proxy upgrade timelock + canary
+    UpgradeNotProposed = 29,
+    UpgradeTimelockNotElapsed = 30,
+    UpgradeAlreadyApproved = 31,
+    InvalidPrice = 32,
 }
