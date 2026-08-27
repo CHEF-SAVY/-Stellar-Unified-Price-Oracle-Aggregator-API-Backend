@@ -8,6 +8,10 @@ Welcome to the Stellar Unified Price Oracle Aggregator API documentation.
 - [ADRs](./adr/) — Architecture Decision Records
 - [Runbooks](./runbooks/) — operational runbooks
 - [OpenAPI spec](../api/src/services/openapi.ts) — Swagger UI at `/api/v1/docs`
+- [Contract Upgrade Governance](./CONTRACT_UPGRADE_GOVERNANCE.md) — proposal lifecycle, multi-sig, proxy upgrades
+- [Performance Tuning Guide](./PERFORMANCE_TUNING.md) — pool sizing, cache TTLs, polling, batching, fees
+- [Key Management](./KEY_MANAGEMENT.md) — admin/source signer key hierarchy and rotation
+- [Security Policy](../SECURITY.md) — vulnerability disclosure and bug bounty program
 
 ## Architecture overview
 
