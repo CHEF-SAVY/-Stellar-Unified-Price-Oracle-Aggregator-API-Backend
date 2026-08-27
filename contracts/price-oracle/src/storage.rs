@@ -1,4 +1,4 @@
-use soroban_sdk::{Address, Bytes, Env, String, Vec};
+use soroban_sdk::{Address, Bytes, BytesN, Env, String, Vec};
 
 use crate::errors::OracleError;
 use crate::types::{DataKey, GovernanceConfig, GovernanceProposal, MultiSigConfig, MultiSigProposal, PriceDataPoint, SourceReputation};
@@ -406,6 +406,107 @@ pub fn get_slash_count(env: &Env, addr: &Address) -> u32 {
         .instance()
         .get(&DataKey::SlashCount(addr.clone()))
         .unwrap_or(0)
+}
+
+// ── Proxy upgrade timelock (Issue #375) ────────────────────────────────────────
+
+pub fn set_pending_upgrade(env: &Env, wasm_hash: &BytesN<32>, eta: u64) {
+    env.storage()
+        .instance()
+        .set(&DataKey::PendingUpgradeHash, wasm_hash);
+    env.storage().instance().set(&DataKey::PendingUpgradeEta, &eta);
+    env.storage()
+        .instance()
+        .set(&DataKey::UpgradeApprovals, &Vec::<Address>::new(env));
+}
+
+pub fn get_pending_upgrade(env: &Env) -> Option<BytesN<32>> {
+    env.storage().instance().get(&DataKey::PendingUpgradeHash)
+}
+
+pub fn get_pending_upgrade_eta(env: &Env) -> Option<u64> {
+    env.storage().instance().get(&DataKey::PendingUpgradeEta)
+}
+
+pub fn clear_pending_upgrade(env: &Env) {
+    env.storage().instance().remove(&DataKey::PendingUpgradeHash);
+    env.storage().instance().remove(&DataKey::PendingUpgradeEta);
+    env.storage().instance().remove(&DataKey::UpgradeApprovals);
+}
+
+pub fn get_upgrade_approvals(env: &Env) -> Vec<Address> {
+    env.storage()
+        .instance()
+        .get(&DataKey::UpgradeApprovals)
+        .unwrap_or_else(|| Vec::new(env))
+}
+
+pub fn record_upgrade_approval(env: &Env, signer: &Address) {
+    let mut approvals = get_upgrade_approvals(env);
+    approvals.push_back(signer.clone());
+    env.storage()
+        .instance()
+        .set(&DataKey::UpgradeApprovals, &approvals);
+}
+
+// ── Canary rollout (Issue #375) ─────────────────────────────────────────────────
+
+pub fn set_canary(env: &Env, implementation: &Address, traffic_share_bps: u32) {
+    env.storage()
+        .instance()
+        .set(&DataKey::CanaryImplementation, implementation);
+    env.storage()
+        .instance()
+        .set(&DataKey::CanaryTrafficShareBps, &traffic_share_bps);
+}
+
+pub fn get_canary(env: &Env) -> Option<(Address, u32)> {
+    let implementation: Address = env
+        .storage()
+        .instance()
+        .get(&DataKey::CanaryImplementation)?;
+    let bps: u32 = env
+        .storage()
+        .instance()
+        .get(&DataKey::CanaryTrafficShareBps)
+        .unwrap_or(0);
+    Some((implementation, bps))
+}
+
+pub fn clear_canary(env: &Env) {
+    env.storage().instance().remove(&DataKey::CanaryImplementation);
+    env.storage()
+        .instance()
+        .remove(&DataKey::CanaryTrafficShareBps);
+}
+
+// ── TTL / rent management (Issue #376) ──────────────────────────────────────────
+
+// Persistent-entry TTL floor and extension target, expressed in ledgers
+// (~5s/ledger on mainnet). Floor ~7 days, extended out to ~90 days so the
+// scheduled rent job (see scripts/extend-ttl-job.ts) has a wide safety
+// margin between runs.
+pub const TTL_FLOOR_LEDGERS: u32 = 120_960; // ~7 days
+pub const TTL_EXTEND_TO_LEDGERS: u32 = 1_555_200; // ~90 days
+
+/// Extend the TTL of a single asset's price history entry so it never
+/// expires between scheduled rent-payment runs.
+pub fn extend_price_history_ttl(env: &Env, asset: &String) {
+    env.storage().persistent().extend_ttl(
+        &DataKey::PriceHistory(asset.clone()),
+        TTL_FLOOR_LEDGERS,
+        TTL_EXTEND_TO_LEDGERS,
+    );
+}
+
+/// Extend the instance storage TTL, which covers Admin, GovernanceConfig,
+/// GovernanceProposal, and MultiSigConfig entries (Soroban bills and expires
+/// instance storage as a single ledger entry shared by all `.instance()`
+/// keys, so there is no per-key TTL to extend for these).
+pub fn extend_instance_ttl(env: &Env) {
+    env.storage()
+        .instance()
+        .extend_ttl(TTL_FLOOR_LEDGERS, TTL_EXTEND_TO_LEDGERS);
 }
 
 pub fn set_slash_count(env: &Env, addr: &Address, count: &u32) {

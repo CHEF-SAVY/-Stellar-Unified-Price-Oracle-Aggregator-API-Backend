@@ -79,6 +79,10 @@ impl PriceOracleContract {
 
         storage::set_latest_price(&env, &asset, &data_point);
         append_history(&env, &asset, data_point.clone());
+
+        env.events()
+            .publish(("price_submitted", asset, source), (price, timestamp));
+
         Ok(data_point)
     }
 
@@ -121,6 +125,10 @@ impl PriceOracleContract {
 
         storage::set_batch_root(&env, nonce, &root);
         let new_nonce = storage::increment_batch_nonce(&env);
+
+        env.events()
+            .publish(("batch_submitted", source), (nonce, root));
+
         Ok(new_nonce)
     }
 
@@ -157,6 +165,12 @@ impl PriceOracleContract {
 
         storage::set_latest_price(&env, &entry.asset, &data_point);
         append_history(&env, &entry.asset, data_point.clone());
+
+        env.events().publish(
+            ("batch_entry_applied", entry.asset.clone()),
+            (batch_nonce, entry.price),
+        );
+
         Ok(data_point)
     }
 
@@ -313,6 +327,10 @@ impl PriceOracleContract {
 
         proposal.executed = 1;
         storage::set_multisig_proposal(&env, &proposal);
+
+        env.events()
+            .publish(("governance_executed", signer), proposal_id);
+
         Ok(())
     }
 
@@ -468,6 +486,25 @@ impl PriceOracleContract {
 
     pub fn get_stake_balance(env: Env, source: Address) -> i128 {
         storage::get_stake(&env, &source)
+    }
+
+    // -------------------------------------------------------------------------
+    // Issue #376 — scheduled TTL / rent extension
+    // -------------------------------------------------------------------------
+
+    /// Extend the TTL of every persistent price-history entry plus the
+    /// shared instance storage entry (Admin, GovernanceConfig,
+    /// GovernanceProposal, MultiSigConfig) so state never expires between
+    /// scheduled rent-payment runs. Callable by anyone — it only pays rent
+    /// and cannot mutate oracle state, so no admin auth is required.
+    pub fn extend_storage_ttl(env: Env) {
+        storage::extend_instance_ttl(&env);
+        let assets = storage::get_all_assets(&env);
+        for i in 0..assets.len() {
+            if let Some(asset) = assets.get(i) {
+                storage::extend_price_history_ttl(&env, &asset);
+            }
+        }
     }
 }
 
