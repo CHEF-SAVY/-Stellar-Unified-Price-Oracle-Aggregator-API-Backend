@@ -33,6 +33,19 @@ pub fn verify_admin(env: &Env, admin: &Address) -> Result<(), OracleError> {
     Ok(())
 }
 
+// ── Issue #379 — multi-region aware emergency pause ────────────────────────────
+
+pub fn set_paused(env: &Env, paused: bool) {
+    env.storage().instance().set(&DataKey::Paused, &paused);
+}
+
+pub fn is_paused(env: &Env) -> bool {
+    env.storage()
+        .instance()
+        .get(&DataKey::Paused)
+        .unwrap_or(false)
+}
+
 // ── Proxy / upgrade keys ──────────────────────────────────────────────────────
 
 pub fn set_implementation(env: &Env, implementation: &Address) {

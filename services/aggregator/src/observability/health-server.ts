@@ -14,6 +14,8 @@ interface HealthSnapshot {
   replicatedPrices?: any[];
   circuitBreakerMetrics?: any;
   circuitBreakerStates?: Record<string, SourceCBStatus>;
+  // Issue #382 — seconds since last on-chain update, per asset.
+  onChainHeartbeat?: Record<string, number>;
 }
 
 export class HealthServer {
@@ -143,6 +145,8 @@ export class HealthServer {
             : [],
           // #65 — include daily API call counts
           dailyApiCalls: getDailyCounts(),
+          // #382 — on-chain price staleness heartbeat, per asset
+          onChainHeartbeat: snap.onChainHeartbeat || {},
         };
 
         if (verbose) {

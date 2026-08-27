@@ -41,6 +41,13 @@ impl PriceOracleContract {
     ) -> Result<PriceDataPoint, OracleError> {
         source.require_auth();
 
+        // Issue #379 — a multi-sig-guarded emergency pause halts submission
+        // globally; reads (get_price/get_price_history) remain unaffected so
+        // every region keeps serving cached data during the freeze.
+        if storage::is_paused(&env) {
+            return Err(OracleError::ContractPaused);
+        }
+
         if !storage::is_authorized_source(&env, &source) {
             return Err(OracleError::UnauthorizedSource);
         }
@@ -99,6 +106,12 @@ impl PriceOracleContract {
         root: Bytes,
     ) -> Result<u64, OracleError> {
         source.require_auth();
+
+        // Issue #379 — batch commits are a submission path too and must
+        // honor the same global emergency pause as submit_price.
+        if storage::is_paused(&env) {
+            return Err(OracleError::ContractPaused);
+        }
 
         if !storage::is_authorized_source(&env, &source) {
             return Err(OracleError::UnauthorizedSource);
@@ -327,6 +340,19 @@ impl PriceOracleContract {
 
     pub fn get_multisig_config(env: Env) -> Option<MultiSigConfig> {
         storage::get_multisig_config(&env)
+    }
+
+    // -------------------------------------------------------------------------
+    // Issue #379 — multi-region aware emergency pause
+    // -------------------------------------------------------------------------
+
+    /// Read-only pause flag. Off-chain aggregators in every region poll this
+    /// on their normal cycle and skip submission while it is `true`, so all
+    /// regions honor the freeze within one poll cycle without a separate
+    /// off-chain coordination bus — the chain itself is the single source of
+    /// truth for pause state.
+    pub fn is_paused(env: Env) -> bool {
+        storage::is_paused(&env)
     }
 
     // -------------------------------------------------------------------------
@@ -626,6 +652,12 @@ fn apply_proposal_action(env: &Env, action: &ProposalAction) -> Result<(), Oracl
                 config.threshold = *new_threshold;
                 storage::set_multisig_config(env, &config);
             }
+        }
+        ProposalAction::Pause => {
+            storage::set_paused(env, true);
+        }
+        ProposalAction::Unpause => {
+            storage::set_paused(env, false);
         }
         _ => {}
     }

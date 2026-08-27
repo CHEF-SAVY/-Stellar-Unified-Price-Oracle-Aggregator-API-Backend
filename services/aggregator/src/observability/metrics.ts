@@ -92,4 +92,19 @@ export const oracleSourceUptimePercent = new client.Gauge({
   registers: [register],
 });
 
+// Issue #382 — on-chain price staleness heartbeat.
+export const onChainPriceStalenessSeconds = new client.Gauge({
+  name: 'onchain_price_staleness_seconds',
+  help: 'Seconds since the last on-chain price update per asset, as read directly from the oracle contract',
+  labelNames: ['asset'],
+  registers: [register],
+});
+
+export const onChainHeartbeatAlertsTotal = new client.Counter({
+  name: 'onchain_heartbeat_alerts_total',
+  help: 'Number of times the on-chain staleness heartbeat exceeded STALENESS_THRESHOLD_MS',
+  labelNames: ['asset'],
+  registers: [register],
+});
+
 export { register };

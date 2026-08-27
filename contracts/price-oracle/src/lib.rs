@@ -18,6 +18,8 @@ mod governance_test;
 mod proxy_test;
 #[cfg(test)]
 mod gas_benchmarks;
+#[cfg(test)]
+mod upgrade_migration_test;
 
 pub use contract::PriceOracleContract;
 pub use governance::GovernanceContract;

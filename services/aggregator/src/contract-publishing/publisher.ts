@@ -206,6 +206,48 @@ export class ContractPublisher {
     }
   }
 
+  // Issue #382 — on-chain price staleness heartbeat.
+  //
+  // Read-only `get_price` simulation: no signing/sending needed, but the SDK
+  // still requires a built+signed transaction envelope to simulate against.
+  // Returns the on-chain `timestamp` field (seconds) for `asset`, or null if
+  // the asset has never been submitted or the call fails.
+  async getOnChainTimestamp(asset: string): Promise<number | null> {
+    try {
+      const account = await this.server.getAccount(this.keypair.publicKey());
+      const tx = new TransactionBuilder(account, {
+        fee: '100',
+        networkPassphrase: this.networkPassphrase,
+      })
+        .addOperation(
+          Operation.invokeContractFunction({
+            contract: this.contractId,
+            function: 'get_price',
+            args: [nativeToScVal(asset, { type: 'string' })],
+          }),
+        )
+        .setTimeout(30)
+        .build();
+
+      tx.sign(this.keypair);
+      const simulateResponse: any = await this.server.simulateTransaction(tx);
+      if (simulateResponse.error || !simulateResponse.result?.retval) {
+        return null;
+      }
+
+      const decoded: any = scValToNative(simulateResponse.result.retval);
+      if (decoded === undefined || decoded === null || decoded.timestamp === undefined) {
+        return null;
+      }
+      return Number(decoded.timestamp);
+    } catch (err) {
+      logger.warn(`[Contract] Failed to read on-chain timestamp for ${asset}`, {
+        error: err instanceof Error ? err.message : String(err),
+      });
+      return null;
+    }
+  }
+
   private async captureContractEvents(txHash: string): Promise<void> {
     try {
       const response: any = await this.server.getTransaction(txHash);
