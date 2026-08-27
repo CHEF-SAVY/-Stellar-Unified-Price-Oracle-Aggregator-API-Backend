@@ -1,7 +1,7 @@
 use soroban_sdk::{Address, Bytes, Env, String, Vec};
 
 use crate::errors::OracleError;
-use crate::types::{DataKey, GovernanceConfig, GovernanceProposal, MultiSigConfig, MultiSigProposal, PriceDataPoint, SourceReputation};
+use crate::types::{CanaryConfig, DataKey, GovernanceConfig, GovernanceProposal, MultiSigConfig, MultiSigProposal, PendingProxyUpgrade, PriceDataPoint, SourceReputation};
 
 // Maximum number of historical data points kept per asset.
 // Older entries beyond this cap are dropped on each write, keeping instance
@@ -385,4 +385,30 @@ pub fn set_slash_count(env: &Env, addr: &Address, count: &u32) {
     env.storage()
         .instance()
         .set(&DataKey::SlashCount(addr.clone()), count);
+}
+
+// ── Proxy upgrade governance (Issue #375) ───────────────────────────────────
+
+pub fn set_pending_upgrade(env: &Env, upgrade: &PendingProxyUpgrade) {
+    env.storage().instance().set(&DataKey::PendingProxyUpgrade, upgrade);
+}
+
+pub fn get_pending_upgrade(env: &Env) -> Option<PendingProxyUpgrade> {
+    env.storage().instance().get(&DataKey::PendingProxyUpgrade)
+}
+
+pub fn clear_pending_upgrade(env: &Env) {
+    env.storage().instance().remove(&DataKey::PendingProxyUpgrade);
+}
+
+pub fn set_canary_config(env: &Env, config: &CanaryConfig) {
+    env.storage().instance().set(&DataKey::CanaryConfig, config);
+}
+
+pub fn get_canary_config(env: &Env) -> Option<CanaryConfig> {
+    env.storage().instance().get(&DataKey::CanaryConfig)
+}
+
+pub fn clear_canary_config(env: &Env) {
+    env.storage().instance().remove(&DataKey::CanaryConfig);
 }

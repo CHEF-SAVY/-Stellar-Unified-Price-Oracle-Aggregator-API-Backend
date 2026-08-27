@@ -1,4 +1,4 @@
-use soroban_sdk::{contracttype, Address, Bytes, String, Vec};
+use soroban_sdk::{contracttype, Address, Bytes, BytesN, String, Vec};
 
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -172,6 +172,22 @@ pub struct GovernanceConfig {
     pub guardian: Address,
 }
 
+// Issue #375 — timelocked, quorum-gated proxy upgrades + canary rollout
+#[contracttype]
+#[derive(Clone, Debug)]
+pub struct PendingProxyUpgrade {
+    pub new_wasm_hash: BytesN<32>,
+    pub unlock_time: u64,
+    pub approvals: Vec<Address>,
+}
+
+#[contracttype]
+#[derive(Clone, Debug)]
+pub struct CanaryConfig {
+    pub candidate: Address,
+    pub share_bps: u32,
+}
+
 #[contracttype]
 #[derive(Clone)]
 pub enum DataKey {
@@ -213,4 +229,7 @@ pub enum DataKey {
     PostQuantumAdminKey(String),
     PostQuantumKeyLog(u32),
     PostQuantumKeyLogCount,
+    // Issue #375 — proxy upgrade governance + canary
+    PendingProxyUpgrade,
+    CanaryConfig,
 }

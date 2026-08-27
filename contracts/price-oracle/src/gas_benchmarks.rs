@@ -16,8 +16,11 @@
 
 #[cfg(test)]
 mod bench {
+    extern crate std;
+    use std::{println, vec, vec::Vec};
+
     use soroban_sdk::{
-        testutils::{Address as _, Budget},
+        testutils::{budget::Budget, Address as _},
         Address, Env, String,
     };
 
@@ -27,6 +30,7 @@ mod bench {
 
     fn setup() -> (Env, PriceOracleContractClient<'static>, Address, Address) {
         let env = Env::default();
+        env.mock_all_auths();
         let id = env.register_contract(None, PriceOracleContract);
         let client = PriceOracleContractClient::new(&env, &id);
 
@@ -53,6 +57,7 @@ mod bench {
     #[test]
     fn bench_initialize() {
         let env = Env::default();
+        env.mock_all_auths();
         let id = env.register_contract(None, PriceOracleContract);
         let client = PriceOracleContractClient::new(&env, &id);
         let admin = Address::generate(&env);
@@ -220,6 +225,7 @@ mod bench {
     #[test]
     fn bench_multi_source_submit() {
         let env = Env::default();
+        env.mock_all_auths();
         let id = env.register_contract(None, PriceOracleContract);
         let client = PriceOracleContractClient::new(&env, &id);
 

@@ -36,4 +36,6 @@ pub enum OracleError {
     BatchNonceMismatch = 27,
     BatchRootNotFound = 28,
     InvalidPrice = 29,
+    // Issue #375 — proxy upgrade governance
+    NoPendingUpgrade = 30,
 }

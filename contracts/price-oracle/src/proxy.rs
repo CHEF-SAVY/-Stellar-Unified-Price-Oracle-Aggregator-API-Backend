@@ -1,8 +1,8 @@
-use soroban_sdk::{contract, contractimpl, Address, BytesN, Env, String, Vec};
+use soroban_sdk::{contract, contractimpl, Address, Bytes, BytesN, Env, String, Vec};
 
 use crate::errors::OracleError;
 use crate::storage;
-use crate::types::{AssetPrice, PriceDataPoint, SourceReputation};
+use crate::types::{AssetPrice, CanaryConfig, MultiSigConfig, PendingProxyUpgrade, PriceDataPoint, SourceReputation};
 
 // Issue #68: Proxy contract with upgradeability via WASM hash replacement.
 //
@@ -35,19 +35,177 @@ impl ProxyContract {
     // Replaces the running WASM while preserving all storage.
     // -------------------------------------------------------------------------
 
-    pub fn upgrade_wasm(
+    // -------------------------------------------------------------------------
+    // Issue #375 — timelock + quorum gate on WASM upgrades.
+    //
+    // Flow: propose_upgrade (admin, starts timelock) → approve_upgrade (each
+    // multisig signer, if a MultiSigConfig is set) → upgrade_wasm (admin,
+    // only once the timelock has elapsed and quorum is met).
+    // -------------------------------------------------------------------------
+
+    /// Configure (or replace) the signer set and threshold that gate
+    /// `upgrade_wasm` once a proposal's timelock has elapsed. Distinct from
+    /// `MultiSigAdminContract`: this quorum lives on the proxy's own
+    /// instance storage since only the proxy's admin can invoke it.
+    pub fn init_upgrade_quorum(
         env: Env,
         admin: Address,
-        new_wasm_hash: BytesN<32>,
+        signers: Vec<Address>,
+        threshold: u32,
     ) -> Result<(), OracleError> {
         admin.require_auth();
         storage::verify_admin(&env, &admin)?;
 
+        if threshold == 0 || (threshold as usize) > signers.len() as usize {
+            return Err(OracleError::InvalidThreshold);
+        }
+
+        storage::set_multisig_config(&env, &MultiSigConfig { signers, threshold });
+        Ok(())
+    }
+
+    pub fn get_upgrade_quorum(env: Env) -> Option<MultiSigConfig> {
+        storage::get_multisig_config(&env)
+    }
+
+    pub fn propose_upgrade(
+        env: Env,
+        admin: Address,
+        new_wasm_hash: BytesN<32>,
+        timelock_secs: u64,
+    ) -> Result<(), OracleError> {
+        admin.require_auth();
+        storage::verify_admin(&env, &admin)?;
+
+        if timelock_secs < MIN_UPGRADE_TIMELOCK_SECS {
+            return Err(OracleError::InvalidThreshold);
+        }
+
+        let mut approvals: Vec<Address> = Vec::new(&env);
+        approvals.push_back(admin);
+
+        storage::set_pending_upgrade(
+            &env,
+            &PendingProxyUpgrade {
+                new_wasm_hash,
+                unlock_time: env.ledger().timestamp() + timelock_secs,
+                approvals,
+            },
+        );
+        Ok(())
+    }
+
+    pub fn approve_upgrade(env: Env, signer: Address) -> Result<(), OracleError> {
+        signer.require_auth();
+
+        let config = storage::get_multisig_config(&env).ok_or(OracleError::MultiSigNotInitialized)?;
+        if !vec_contains_address(&config.signers, &signer) {
+            return Err(OracleError::NotASigner);
+        }
+
+        let mut pending = storage::get_pending_upgrade(&env).ok_or(OracleError::NoPendingUpgrade)?;
+        if vec_contains_address(&pending.approvals, &signer) {
+            return Err(OracleError::AlreadyApproved);
+        }
+        pending.approvals.push_back(signer);
+        storage::set_pending_upgrade(&env, &pending);
+        Ok(())
+    }
+
+    pub fn cancel_upgrade(env: Env, admin: Address) -> Result<(), OracleError> {
+        admin.require_auth();
+        storage::verify_admin(&env, &admin)?;
+        storage::clear_pending_upgrade(&env);
+        Ok(())
+    }
+
+    pub fn get_pending_upgrade(env: Env) -> Option<PendingProxyUpgrade> {
+        storage::get_pending_upgrade(&env)
+    }
+
+    pub fn upgrade_wasm(env: Env, admin: Address) -> Result<(), OracleError> {
+        admin.require_auth();
+        storage::verify_admin(&env, &admin)?;
+
+        let pending = storage::get_pending_upgrade(&env).ok_or(OracleError::NoPendingUpgrade)?;
+
+        if env.ledger().timestamp() < pending.unlock_time {
+            return Err(OracleError::TimeLockNotElapsed);
+        }
+
+        if let Some(config) = storage::get_multisig_config(&env) {
+            if (pending.approvals.len()) < config.threshold {
+                return Err(OracleError::ThresholdNotMet);
+            }
+        }
+
         let current_version = storage::get_contract_version(&env);
         storage::set_contract_version(&env, current_version + 1);
+        storage::clear_pending_upgrade(&env);
 
-        env.deployer().update_current_contract_wasm(new_wasm_hash);
+        env.events()
+            .publish(("proxy_upgraded", admin), (current_version + 1, pending.new_wasm_hash.clone()));
+
+        env.deployer().update_current_contract_wasm(pending.new_wasm_hash);
         Ok(())
+    }
+
+    // -------------------------------------------------------------------------
+    // Issue #375 — canary rollout. The canary candidate is a separately
+    // deployed contract address; `resolve_target` lets an off-chain router or
+    // client SDK decide which address to invoke for a given caller so a
+    // configurable share of traffic reaches the candidate before the
+    // canonical WASM upgrade goes out to everyone.
+    // -------------------------------------------------------------------------
+
+    pub fn propose_canary(
+        env: Env,
+        admin: Address,
+        candidate: Address,
+        share_bps: u32,
+    ) -> Result<(), OracleError> {
+        admin.require_auth();
+        storage::verify_admin(&env, &admin)?;
+
+        if share_bps > 10_000 {
+            return Err(OracleError::InvalidThreshold);
+        }
+
+        storage::set_canary_config(&env, &CanaryConfig { candidate, share_bps });
+        env.events().publish(("canary_set", admin), share_bps);
+        Ok(())
+    }
+
+    pub fn clear_canary(env: Env, admin: Address) -> Result<(), OracleError> {
+        admin.require_auth();
+        storage::verify_admin(&env, &admin)?;
+        storage::clear_canary_config(&env);
+        Ok(())
+    }
+
+    pub fn get_canary(env: Env) -> Option<CanaryConfig> {
+        storage::get_canary_config(&env)
+    }
+
+    /// Deterministically route a share of traffic to the canary candidate.
+    /// The same caller always resolves the same way for a given canary
+    /// configuration, avoiding per-call flapping.
+    pub fn resolve_target(env: Env, caller: Address) -> Address {
+        let canonical = storage::get_implementation(&env).unwrap_or_else(|| env.current_contract_address());
+
+        let canary = match storage::get_canary_config(&env) {
+            Some(c) => c,
+            None => return canonical,
+        };
+        if canary.share_bps == 0 {
+            return canonical;
+        }
+
+        if address_bucket(&env, &caller) < canary.share_bps {
+            canary.candidate
+        } else {
+            canonical
+        }
     }
 
     // -------------------------------------------------------------------------
@@ -280,6 +438,35 @@ impl ProxyContract {
 
 const REPUTATION_ACCURACY_THRESHOLD_BPS: u128 = 2000;
 const REPUTATION_DECAY_PERIOD_SECS: u64 = 604_800;
+// Issue #375 — minimum delay between an upgrade proposal and its execution.
+const MIN_UPGRADE_TIMELOCK_SECS: u64 = 172_800; // 48 hours
+
+fn vec_contains_address(vec: &Vec<Address>, target: &Address) -> bool {
+    for i in 0..vec.len() {
+        if let Some(addr) = vec.get(i) {
+            if &addr == target {
+                return true;
+            }
+        }
+    }
+    false
+}
+
+fn address_bucket(env: &Env, addr: &Address) -> u32 {
+    let s = addr.to_string();
+    let len = (s.len() as usize).min(64);
+    let mut buf = [0u8; 64];
+    s.copy_into_slice(&mut buf[..len]);
+    let digest = env.crypto().sha256(&Bytes::from_slice(env, &buf[..len]));
+    let digest_bytes: Bytes = digest.into();
+    let mut val: u32 = 0;
+    for i in 0..4u32 {
+        if let Some(b) = digest_bytes.get(i) {
+            val = (val << 8) | (b as u32);
+        }
+    }
+    val % 10_000
+}
 
 fn deviation_exceeds(new_price: i128, prev_price: i128, threshold_bps: u32) -> bool {
     if prev_price == 0 {
