@@ -5,8 +5,10 @@ Welcome to the Stellar Unified Price Oracle Aggregator API documentation.
 ## Quick links
 
 - [API Reference](./api-reference/) — auto-generated TypeDoc documentation
+- [API Guide](../api/docs/API.md) — REST + WebSocket protocol reference with auth, rate limiting, error codes, and examples
 - [ADRs](./adr/) — Architecture Decision Records
 - [Runbooks](./runbooks/) — operational runbooks
+- [Security Audit Plan](./SECURITY_AUDIT.md) — third-party Soroban contract audit scope and process
 - [OpenAPI spec](../api/src/services/openapi.ts) — Swagger UI at `/api/v1/docs`
 
 ## Architecture overview
