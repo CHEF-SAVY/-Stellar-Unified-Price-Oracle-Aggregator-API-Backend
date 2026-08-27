@@ -5,13 +5,14 @@ Welcome to the Stellar Unified Price Oracle Aggregator API documentation.
 ## Quick links
 
 - [API Reference](./api-reference/) — auto-generated TypeDoc documentation
+- [API Guide](../api/docs/API.md) — REST + WebSocket protocol reference with auth, rate limiting, error codes, and examples
 - [ADRs](./adr/) — Architecture Decision Records
 - [Runbooks](./runbooks/) — operational runbooks
+- [Security Audit Plan](./SECURITY_AUDIT.md) — third-party Soroban contract audit scope and process
 - [OpenAPI spec](../api/src/services/openapi.ts) — Swagger UI at `/api/v1/docs`
-- [Contract Upgrade Governance](./CONTRACT_UPGRADE_GOVERNANCE.md) — proposal lifecycle, multi-sig, proxy upgrades
-- [Performance Tuning Guide](./PERFORMANCE_TUNING.md) — pool sizing, cache TTLs, polling, batching, fees
-- [Key Management](./KEY_MANAGEMENT.md) — admin/source signer key hierarchy and rotation
-- [Security Policy](../SECURITY.md) — vulnerability disclosure and bug bounty program
+- [Threat Model](./THREAT_MODEL.md) — mainnet trust boundaries, attacker profiles, mitigations
+- [Governance](./GOVERNANCE.md) — branch protection, signed commits, CODEOWNERS
+- [Sandbox Security Review](./SANDBOX_SECURITY_REVIEW.md) — programmable feed / plugin sandbox review
 
 ## Architecture overview
 

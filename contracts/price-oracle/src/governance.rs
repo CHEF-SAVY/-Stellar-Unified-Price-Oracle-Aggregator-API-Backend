@@ -120,6 +120,9 @@ impl GovernanceContract {
         };
 
         storage::set_gov_proposal(&env, &proposal);
+
+        env.events().publish(("governance_proposed", proposer), id);
+
         Ok(id)
     }
 
@@ -209,6 +212,10 @@ impl GovernanceContract {
         storage::set_gov_proposal(&env, &proposal);
 
         apply_action(&env, &proposal.action);
+
+        env.events()
+            .publish(("governance_proposal_executed", proposal_id), env.ledger().timestamp());
+
         Ok(())
     }
 
@@ -264,6 +271,10 @@ impl GovernanceContract {
         storage::set_gov_proposal(&env, &proposal);
 
         apply_action(&env, &proposal.action);
+
+        env.events()
+            .publish(("governance_emergency_executed", guardian), proposal_id);
+
         Ok(())
     }
 
