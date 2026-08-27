@@ -110,6 +110,9 @@ pub enum ProposalAction {
     AddOracleSource(Address, String),
     RemoveOracleSource(Address),
     UpdateGovernanceConfig(GovernanceConfig),
+    // Issue #379 — multi-region aware emergency pause
+    Pause,
+    Unpause,
 }
 
 // ── Governance types ─────────────────────────────────────────────────────────
@@ -252,4 +255,6 @@ pub enum DataKey {
     PostQuantumAdminKey(String),
     PostQuantumKeyLog(u32),
     PostQuantumKeyLogCount,
+    // Issue #379 — multi-region aware emergency pause
+    Paused,
 }

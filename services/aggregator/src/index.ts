@@ -9,7 +9,7 @@ import { appendUptimeSnapshot } from './persistence/uptime-history';
 import { FileArchivalService } from './persistence/file-archival';
 import { RegionPriceReplicator } from './replication/region-price-replicator';
 import { RegionQuarantineManager } from './replication/region-quarantine';
-import { oracleSourceUptimePercent } from './observability/metrics';
+import { oracleSourceUptimePercent, onChainPriceStalenessSeconds, onChainHeartbeatAlertsTotal } from './observability/metrics';
 import { DatabaseClient } from './persistence/database';
 import { BaseSource } from './oracle-sources/base';
 import { WebSocketServer } from './infrastructure/ws-server';
@@ -53,6 +53,9 @@ const alertManager = new AlertManager({
 });
 
 let lastAggregated: AggregatedPrice[] = [];
+// Issue #382 — on-chain price staleness heartbeat, seconds since last on-chain
+// update per asset; surfaced on the /health status page.
+const onChainHeartbeat: Record<string, number> = {};
 let db: DatabaseClient | null = null;
 let pollSources: BaseSource[] = [];
 
@@ -182,6 +185,27 @@ async function poll(): Promise<AggregatedPrice[]> {
       payload: aggregated,
       timestamp: Date.now(),
     });
+
+    // Issue #382 — on-chain price staleness heartbeat: detect when the
+    // contract itself stops receiving submissions, independent of whether
+    // this aggregator process looks healthy.
+    for (const asset of config.assets) {
+      const onChainTimestamp = await publisher.getOnChainTimestamp(asset);
+      if (onChainTimestamp === null) continue;
+
+      const ageSeconds = Math.floor(Date.now() / 1000) - onChainTimestamp;
+      onChainPriceStalenessSeconds.set({ asset }, ageSeconds);
+
+      const isStale = await alertManager.checkOnChainHeartbeat(
+        asset,
+        onChainTimestamp,
+        Math.floor(config.stalenessThresholdMs / 1000),
+      );
+      if (isStale) {
+        onChainHeartbeatAlertsTotal.inc({ asset });
+      }
+      onChainHeartbeat[asset] = ageSeconds;
+    }
   }
 
   lastAggregated = aggregated;
@@ -277,6 +301,7 @@ async function main(): Promise<void> {
     circuitBreakerMetrics: aggregator.getCircuitBreakerMetrics(),
     circuitBreakerStates: sourceCircuitBreaker.getAllStatuses(),
     uptime: process.uptime(),
+    onChainHeartbeat,
   }));
   healthServer.start();
 

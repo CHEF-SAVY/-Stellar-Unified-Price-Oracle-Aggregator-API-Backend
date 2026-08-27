@@ -35,4 +35,6 @@ pub enum OracleError {
     InvalidMerkleProof = 26,
     BatchNonceMismatch = 27,
     BatchRootNotFound = 28,
+    // Issue #379 — multi-region aware emergency pause
+    ContractPaused = 29,
 }

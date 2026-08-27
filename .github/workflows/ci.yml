@@ -100,6 +100,10 @@ jobs:
         run: cargo test
         working-directory: contracts/price-oracle
 
+      - name: Upgrade state-migration test (issue #381)
+        run: cargo test upgrade_migration --verbose
+        working-directory: contracts/price-oracle
+
       - name: Generate verification report
         run: node scripts/generate-verification-report.mjs
 
