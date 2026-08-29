@@ -123,7 +123,7 @@ async function initializeApp(): Promise<void> {
   }
 }
 
-const cache = new HybridCache<any>(logger, {
+const cache = new HybridCache<unknown>(logger, {
   redisUrl: config.redisUrl,
   fallbackToLru: true,
   priceTtl: config.priceCacheTtl,
@@ -279,7 +279,7 @@ function startSyntheticProbes(port: number): void {
     // WebSocket reachability (TCP connect check via health endpoint)
     try {
       const res = await fetch(`http://localhost:${port}/api/v1/health`);
-      const body = await res.json() as any;
+      const body = await res.json() as { data?: { status?: unknown } };
       const wsStatus = body?.data?.status === 'healthy' ? true : body?.data?.status !== 'unhealthy';
       uptimeTracker.recordCheck('WebSocket', wsStatus);
     } catch {

@@ -27,7 +27,7 @@ import { adminAuthMiddleware } from './auth';
 import { auditLog } from './audit-logger';
 import { logger } from '../observability/logger';
 import * as proposalService from './proposal-service';
-import type { ProposalAction } from './proposal-types';
+import type { ProposalAction, ProposalStatus } from './proposal-types';
 import { formatAction } from './proposal-types';
 
 const ADMIN_KEY_PREFIX = process.env.ADMIN_KEY_PREFIX || 'admin_';
@@ -72,6 +72,22 @@ function errorResponse(res: Response, status: number, code: string, message: str
   res.status(status).json({ success: false, error: { code, message } });
 }
 
+function messageOf(err: unknown): string {
+  if (err instanceof Error) return err.message;
+  if (typeof err === 'string') return err;
+  return 'Internal error';
+}
+
+const VALID_STATUSES = new Set<ProposalStatus>([
+  'Active', 'Queued', 'Ready', 'Executed', 'Defeated', 'Cancelled',
+]);
+
+function parseProposalStatus(value: unknown): ProposalStatus | undefined {
+  return typeof value === 'string' && VALID_STATUSES.has(value as ProposalStatus)
+    ? (value as ProposalStatus)
+    : undefined;
+}
+
 function callerAddress(req: Request): string {
   // In production, the caller's Stellar address would be derived from their
   // authenticated session or provided explicitly in the request body.
@@ -87,9 +103,9 @@ router.get('/multisig/config', async (_req: Request, res: Response) => {
       return errorResponse(res, 404, 'NOT_INITIALIZED', 'Multi-sig has not been initialized');
     }
     res.json({ success: true, data: config });
-  } catch (err: any) {
+  } catch (err: unknown) {
     logger.error('Failed to fetch multi-sig config', err);
-    errorResponse(res, 500, 'INTERNAL', err.message || 'Internal error');
+    errorResponse(res, 500, 'INTERNAL', messageOf(err) || 'Internal error');
   }
 });
 
@@ -116,9 +132,9 @@ router.post('/multisig/proposals', async (req: Request, res: Response) => {
     });
 
     res.status(201).json({ success: true, data: proposal });
-  } catch (err: any) {
+  } catch (err: unknown) {
     logger.error('Failed to create multi-sig proposal', err);
-    errorResponse(res, 400, err.message, err.message || 'Failed to create proposal');
+    errorResponse(res, 400, messageOf(err), messageOf(err) || 'Failed to create proposal');
   }
 });
 
@@ -130,9 +146,9 @@ router.get('/multisig/proposals', async (req: Request, res: Response) => {
       limit: parseInt(req.query.limit as string, 10) || 20,
     });
     res.json({ success: true, data: result });
-  } catch (err: any) {
+  } catch (err: unknown) {
     logger.error('Failed to list multi-sig proposals', err);
-    errorResponse(res, 500, 'INTERNAL', err.message || 'Internal error');
+    errorResponse(res, 500, 'INTERNAL', messageOf(err) || 'Internal error');
   }
 });
 
@@ -146,9 +162,9 @@ router.get('/multisig/proposals/:id', async (req: Request, res: Response) => {
       return errorResponse(res, 404, 'NOT_FOUND', `Proposal ${id} not found`);
     }
     res.json({ success: true, data: proposal });
-  } catch (err: any) {
+  } catch (err: unknown) {
     logger.error('Failed to fetch multi-sig proposal', err);
-    errorResponse(res, 500, 'INTERNAL', err.message || 'Internal error');
+    errorResponse(res, 500, 'INTERNAL', messageOf(err) || 'Internal error');
   }
 });
 
@@ -168,9 +184,9 @@ router.post('/multisig/proposals/:id/approve', async (req: Request, res: Respons
     });
 
     res.json({ success: true, data: proposal });
-  } catch (err: any) {
+  } catch (err: unknown) {
     logger.error('Failed to approve multi-sig proposal', err);
-    errorResponse(res, 400, err.message, err.message || 'Failed to approve');
+    errorResponse(res, 400, messageOf(err), messageOf(err) || 'Failed to approve');
   }
 });
 
@@ -188,9 +204,9 @@ router.post('/multisig/proposals/:id/execute', async (req: Request, res: Respons
     });
 
     res.json({ success: true, data: proposal });
-  } catch (err: any) {
+  } catch (err: unknown) {
     logger.error('Failed to execute multi-sig proposal', err);
-    errorResponse(res, 400, err.message, err.message || 'Failed to execute');
+    errorResponse(res, 400, messageOf(err), messageOf(err) || 'Failed to execute');
   }
 });
 
@@ -203,9 +219,9 @@ router.get('/config', async (_req: Request, res: Response) => {
       return errorResponse(res, 404, 'NOT_INITIALIZED', 'Governance has not been initialized');
     }
     res.json({ success: true, data: config });
-  } catch (err: any) {
+  } catch (err: unknown) {
     logger.error('Failed to fetch governance config', err);
-    errorResponse(res, 500, 'INTERNAL', err.message || 'Internal error');
+    errorResponse(res, 500, 'INTERNAL', messageOf(err) || 'Internal error');
   }
 });
 
@@ -235,24 +251,24 @@ router.post('/proposals', async (req: Request, res: Response) => {
     });
 
     res.status(201).json({ success: true, data: proposal });
-  } catch (err: any) {
+  } catch (err: unknown) {
     logger.error('Failed to create governance proposal', err);
-    errorResponse(res, 400, err.message, err.message || 'Failed to create proposal');
+    errorResponse(res, 400, messageOf(err), messageOf(err) || 'Failed to create proposal');
   }
 });
 
 router.get('/proposals', async (req: Request, res: Response) => {
   try {
     const result = await proposalService.listGovernanceProposals({
-      status: req.query.status as any,
+      status: parseProposalStatus(req.query.status),
       proposer: req.query.proposer as string | undefined,
       page: parseInt(req.query.page as string, 10) || 1,
       limit: parseInt(req.query.limit as string, 10) || 20,
     });
     res.json({ success: true, data: result });
-  } catch (err: any) {
+  } catch (err: unknown) {
     logger.error('Failed to list governance proposals', err);
-    errorResponse(res, 500, 'INTERNAL', err.message || 'Internal error');
+    errorResponse(res, 500, 'INTERNAL', messageOf(err) || 'Internal error');
   }
 });
 
@@ -266,9 +282,9 @@ router.get('/proposals/:id', async (req: Request, res: Response) => {
       return errorResponse(res, 404, 'NOT_FOUND', `Proposal ${id} not found`);
     }
     res.json({ success: true, data: proposal });
-  } catch (err: any) {
+  } catch (err: unknown) {
     logger.error('Failed to fetch governance proposal', err);
-    errorResponse(res, 500, 'INTERNAL', err.message || 'Internal error');
+    errorResponse(res, 500, 'INTERNAL', messageOf(err) || 'Internal error');
   }
 });
 
@@ -294,9 +310,9 @@ router.post('/proposals/:id/vote', async (req: Request, res: Response) => {
     });
 
     res.json({ success: true, data: proposal });
-  } catch (err: any) {
+  } catch (err: unknown) {
     logger.error('Failed to cast vote', err);
-    errorResponse(res, 400, err.message, err.message || 'Failed to vote');
+    errorResponse(res, 400, messageOf(err), messageOf(err) || 'Failed to vote');
   }
 });
 
@@ -308,9 +324,9 @@ router.post('/proposals/:id/queue', async (req: Request, res: Response) => {
     const proposal = await proposalService.queueProposal(id);
 
     res.json({ success: true, data: proposal });
-  } catch (err: any) {
+  } catch (err: unknown) {
     logger.error('Failed to queue proposal', err);
-    errorResponse(res, 400, err.message, err.message || 'Failed to queue');
+    errorResponse(res, 400, messageOf(err), messageOf(err) || 'Failed to queue');
   }
 });
 
@@ -327,9 +343,9 @@ router.post('/proposals/:id/execute', async (req: Request, res: Response) => {
     });
 
     res.json({ success: true, data: proposal });
-  } catch (err: any) {
+  } catch (err: unknown) {
     logger.error('Failed to execute governance proposal', err);
-    errorResponse(res, 400, err.message, err.message || 'Failed to execute');
+    errorResponse(res, 400, messageOf(err), messageOf(err) || 'Failed to execute');
   }
 });
 
@@ -349,9 +365,9 @@ router.post('/proposals/:id/cancel', async (req: Request, res: Response) => {
     });
 
     res.json({ success: true, data: proposal });
-  } catch (err: any) {
+  } catch (err: unknown) {
     logger.error('Failed to cancel proposal', err);
-    errorResponse(res, 400, err.message, err.message || 'Failed to cancel');
+    errorResponse(res, 400, messageOf(err), messageOf(err) || 'Failed to cancel');
   }
 });
 
@@ -371,9 +387,9 @@ router.post('/proposals/:id/emergency-execute', async (req: Request, res: Respon
     });
 
     res.json({ success: true, data: proposal });
-  } catch (err: any) {
+  } catch (err: unknown) {
     logger.error('Failed to emergency-execute proposal', err);
-    errorResponse(res, 400, err.message, err.message || 'Failed to emergency-execute');
+    errorResponse(res, 400, messageOf(err), messageOf(err) || 'Failed to emergency-execute');
   }
 });
 
@@ -386,9 +402,9 @@ router.get('/proposals/:id/has-voted', async (req: Request, res: Response) => {
     const voted = await proposalService.hasVoted(id, voter);
 
     res.json({ success: true, data: { proposalId: id, voter: voter.substring(0, 8), hasVoted: voted } });
-  } catch (err: any) {
+  } catch (err: unknown) {
     logger.error('Failed to check vote', err);
-    errorResponse(res, 500, 'INTERNAL', err.message || 'Internal error');
+    errorResponse(res, 500, 'INTERNAL', messageOf(err) || 'Internal error');
   }
 });
 
@@ -424,9 +440,9 @@ router.get('/summary', async (_req: Request, res: Response) => {
         timestamp: new Date().toISOString(),
       },
     });
-  } catch (err: any) {
+  } catch (err: unknown) {
     logger.error('Failed to generate governance summary', err);
-    errorResponse(res, 500, 'INTERNAL', err.message || 'Internal error');
+    errorResponse(res, 500, 'INTERNAL', messageOf(err) || 'Internal error');
   }
 });
 

@@ -2,7 +2,7 @@ import { config } from './infrastructure/config';
 import { logger } from './observability/logger';
 import { ChainlinkSource, RedstoneSource, BandSource, ReflectorSource } from './oracle-sources';
 import { PriceAggregator } from './price-aggregation/aggregator';
-import { AggregatedPrice } from './infrastructure/types';
+import { AggregatedPrice, type OracleSourceName } from './infrastructure/types';
 import { ContractPublisher } from './contract-publishing/publisher';
 import { appendHistoricalPrice } from './persistence/history';
 import { appendUptimeSnapshot } from './persistence/uptime-history';
@@ -132,7 +132,7 @@ async function poll(): Promise<AggregatedPrice[]> {
 
     const participation: Record<string, number> = {};
     for (const src of allSourceNames) {
-      participation[src] = ap.sources.includes(src as any) ? 1 : 0;
+      participation[src] = ap.sources.includes(src as OracleSourceName) ? 1 : 0;
     }
     logger.debug(`[Metrics] Source participation for ${ap.asset}`, participation);
 

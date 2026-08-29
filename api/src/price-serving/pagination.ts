@@ -37,16 +37,16 @@ export interface CursorPaginationMeta {
   nextCursor: string | null;
 }
 
-export function buildCursorMeta(
-  items: any[],
+export function buildCursorMeta<T extends { timestamp: number }>(
+  items: T[],
   limit: number,
-  timestampField: string,
+  timestampField: keyof T = 'timestamp',
 ): CursorPaginationMeta {
   const hasNextPage = items.length === limit;
   const lastItem = items[items.length - 1];
   const nextCursor =
     hasNextPage && lastItem
-      ? encodeCursor({ ts: lastItem[timestampField], dir: 'asc' })
+      ? encodeCursor({ ts: lastItem[timestampField] as number, dir: 'asc' })
       : null;
 
   return { type: 'cursor', limit, count: items.length, hasNextPage, nextCursor };
