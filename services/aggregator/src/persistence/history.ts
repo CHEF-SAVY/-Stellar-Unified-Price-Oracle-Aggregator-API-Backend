@@ -1,7 +1,16 @@
 import fs from 'fs';
 import path from 'path';
+import { logger } from '../observability/logger';
 import { config } from '../infrastructure/config';
 import { encrypt, decrypt, isEncrypted, isEncryptionConfigured } from '../infrastructure/crypto';
+import { Result, err, ok } from '../infrastructure/result';
+
+export interface HistoricalPriceEntry {
+  price: string;
+  decimals: number;
+  source: string;
+  timestamp: number;
+}
 
 export const DATA_DIR = path.resolve(__dirname, '../../data');
 export const HISTORY_FILE = (asset: string) => path.join(DATA_DIR, `history-${asset.toLowerCase()}.json`);
@@ -17,15 +26,40 @@ export function historyEncryptionEnabled(): boolean {
   return config.security.encryption.encryptHistory && isEncryptionConfigured();
 }
 
-export function readHistoryFile(filePath: string): any[] {
-  if (!fs.existsSync(filePath)) return [];
-  const raw = fs.readFileSync(filePath, 'utf-8');
-  if (!raw) return [];
-  const contents = isEncrypted(raw) ? decrypt(raw) : raw;
-  return JSON.parse(contents);
+/**
+ * Read and parse a per-asset history file as a {@link Result} (issue #299).
+ * Missing files are a valid "no history yet" outcome; parse/decrypt failures
+ * are returned as errors so callers can log with context.
+ */
+export function readHistoryFileResult(filePath: string): Result<HistoricalPriceEntry[], Error> {
+  if (!fs.existsSync(filePath)) return ok([]);
+
+  let raw: string;
+  try {
+    raw = fs.readFileSync(filePath, 'utf-8');
+  } catch (thrown) {
+    const error = thrown instanceof Error ? thrown : new Error(String(thrown));
+    logger.error(`Failed to read history file ${filePath}`, { path: filePath, error: error.message });
+    return err(error);
+  }
+  if (!raw) return ok([]);
+
+  try {
+    const contents = isEncrypted(raw) ? decrypt(raw) : raw;
+    return ok(JSON.parse(contents) as HistoricalPriceEntry[]);
+  } catch (thrown) {
+    const error = thrown instanceof Error ? thrown : new Error(String(thrown));
+    logger.error(`Failed to parse history file ${filePath}`, { path: filePath, error: error.message });
+    return err(error);
+  }
 }
 
-export function writeHistoryFile(filePath: string, history: any[]): void {
+export function readHistoryFile(filePath: string): HistoricalPriceEntry[] {
+  const result = readHistoryFileResult(filePath);
+  return result.ok ? result.value : [];
+}
+
+export function writeHistoryFile(filePath: string, history: HistoricalPriceEntry[]): void {
   const serialized = JSON.stringify(history);
   const payload = historyEncryptionEnabled() ? encrypt(serialized) : serialized;
   fs.writeFileSync(filePath, payload);
@@ -35,13 +69,13 @@ export function writeHistoryFile(filePath: string, history: any[]): void {
  * Drop entries older than the retention window, then keep only the newest
  * maxEntries (issue #214). Entry timestamps are Unix seconds.
  */
-function pruneHistory(history: any[]): any[] {
+function pruneHistory(history: HistoricalPriceEntry[]): HistoricalPriceEntry[] {
   const { maxEntries, retentionSeconds } = config.history;
   let pruned = history;
 
   if (retentionSeconds > 0) {
     const cutoff = Math.floor(Date.now() / 1000) - retentionSeconds;
-    pruned = pruned.filter((h: any) => h.timestamp >= cutoff);
+    pruned = pruned.filter((h) => h.timestamp >= cutoff);
   }
 
   return maxEntries > 0 && pruned.length > maxEntries ? pruned.slice(-maxEntries) : pruned;
@@ -56,10 +90,17 @@ export function appendHistoricalPrice(
 ): void {
   ensureDataDir();
   const filePath = HISTORY_FILE(asset);
-  let history: any[] = [];
-  try {
-    history = readHistoryFile(filePath);
-  } catch { /* ignore corrupt data */ }
+  let history: HistoricalPriceEntry[] = [];
+  const read = readHistoryFileResult(filePath);
+  if (read.ok) {
+    history = read.value;
+  } else {
+    logger.warn(`Appending to corrupt history file for ${asset}; starting fresh`, {
+      asset,
+      path: filePath,
+      error: read.error.message,
+    });
+  }
   history.push({ price, decimals, source, timestamp });
   writeHistoryFile(filePath, pruneHistory(history));
 }
@@ -69,14 +110,19 @@ export function getHistoricalPrices(
   from?: number,
   to?: number,
   limit = 100,
-): any[] {
+): HistoricalPriceEntry[] {
   const filePath = HISTORY_FILE(asset);
-  try {
-    let history = readHistoryFile(filePath);
-    if (from) history = history.filter((h: any) => h.timestamp >= from);
-    if (to) history = history.filter((h: any) => h.timestamp <= to);
-    return history.slice(-limit);
-  } catch {
+  const read = readHistoryFileResult(filePath);
+  if (!read.ok) {
+    logger.error(`Failed to read history for ${asset}`, {
+      asset,
+      path: filePath,
+      error: read.error.message,
+    });
     return [];
   }
+  let history = read.value;
+  if (from) history = history.filter((h) => h.timestamp >= from);
+  if (to) history = history.filter((h) => h.timestamp <= to);
+  return history.slice(-limit);
 }
