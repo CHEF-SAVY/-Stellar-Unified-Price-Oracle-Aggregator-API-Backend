@@ -189,6 +189,8 @@ pub enum DataKey {
     SourceReputation(Address),
     BatchNonce,
     BatchRoot(u64),
+    BatchAppliedLeaves(u64),
+    BatchPruneWatermark,
     QueryFee,
     Whitelist(Address),
     FeeBalance,

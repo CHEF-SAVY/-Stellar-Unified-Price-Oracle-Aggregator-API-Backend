@@ -16,6 +16,8 @@ mod fuzz;
 #[cfg(test)]
 mod governance_test;
 #[cfg(test)]
+mod merkle_test;
+#[cfg(test)]
 mod proxy_test;
 #[cfg(test)]
 mod gas_benchmarks;
