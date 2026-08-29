@@ -3,6 +3,7 @@ import { IncomingMessage } from 'http';
 import { logger } from '../observability/logger';
 import { validateWebSocketApiKey } from '../governance/auth';
 import { HybridCache } from '../price-serving/cache';
+import { ClientMessageType, ServerMessageType } from './ws-messages';
 import { validateWsAssets } from '../governance/sanitization';
 import { webhookService } from '../webhooks/webhook-service';
 import { config } from './config';
@@ -54,7 +55,7 @@ export class PriceWebSocketServer {
     this.wss.on('connection', (ws: WebSocket, req: IncomingMessage) => {
       const auth = validateWebSocketApiKey(req);
       if (!auth.valid) {
-        ws.send(JSON.stringify({ type: 'error', code: 'UNAUTHORIZED', message: auth.error }));
+        ws.send(JSON.stringify({ type: ServerMessageType.Error, code: 'UNAUTHORIZED', message: auth.error }));
         ws.close(1008, auth.error || 'Unauthorized');
         return;
       }
@@ -76,7 +77,7 @@ export class PriceWebSocketServer {
           const msg = JSON.parse(raw.toString());
           this.handleMessage(ws, msg);
         } catch {
-          ws.send(JSON.stringify({ type: 'error', message: 'Invalid JSON' }));
+          ws.send(JSON.stringify({ type: ServerMessageType.Error, message: 'Invalid JSON' }));
           wsErrorsTotal.inc();
         }
       });
@@ -98,7 +99,7 @@ export class PriceWebSocketServer {
       });
 
       ws.send(JSON.stringify({
-        type: 'connected',
+        type: ServerMessageType.Connected,
         clientCount: this.clients.size,
         sequenceId: globalSequence,
         replaySupported: true,
@@ -113,7 +114,7 @@ export class PriceWebSocketServer {
 
   private handleMessage(ws: WebSocket, msg: unknown): void {
     if (!msg || typeof msg !== 'object') {
-      ws.send(JSON.stringify({ type: 'error', message: 'Invalid message' }));
+      ws.send(JSON.stringify({ type: ServerMessageType.Error, message: 'Invalid message' }));
       wsErrorsTotal.inc();
       return;
     }
@@ -121,20 +122,20 @@ export class PriceWebSocketServer {
     const m = msg as Record<string, unknown>;
 
     switch (m.type) {
-      case 'subscribe':
+      case ClientMessageType.Subscribe:
         if (!validateWsAssets(m.assets)) {
-          ws.send(JSON.stringify({ type: 'error', message: 'Invalid assets: must be an array of up to 50 valid asset symbols' }));
+          ws.send(JSON.stringify({ type: ServerMessageType.Error, message: 'Invalid assets: must be an array of up to 50 valid asset symbols' }));
           return;
         }
         {
           const subs = this.subscriptions.get(ws);
           (m.assets as string[]).forEach((a) => subs?.add(a.toUpperCase()));
-          ws.send(JSON.stringify({ type: 'subscribed', assets: m.assets, sequenceId: globalSequence }));
+          ws.send(JSON.stringify({ type: ServerMessageType.Subscribed, assets: m.assets, sequenceId: globalSequence }));
         }
         break;
-      case 'unsubscribe':
+      case ClientMessageType.Unsubscribe:
         if (!validateWsAssets(m.assets)) {
-          ws.send(JSON.stringify({ type: 'error', message: 'Invalid assets: must be an array of up to 50 valid asset symbols' }));
+          ws.send(JSON.stringify({ type: ServerMessageType.Error, message: 'Invalid assets: must be an array of up to 50 valid asset symbols' }));
           return;
         }
         {
@@ -142,19 +143,19 @@ export class PriceWebSocketServer {
           (m.assets as string[]).forEach((a) => subs?.delete(a.toUpperCase()));
           wsSubscribeEventsTotal.inc({ action: 'unsubscribe' });
           wsMessagesTotal.inc({ direction: 'inbound', type: 'unsubscribe' });
-          ws.send(JSON.stringify({ type: 'unsubscribed', assets: m.assets }));
+          ws.send(JSON.stringify({ type: ServerMessageType.Unsubscribed, assets: m.assets }));
         }
         break;
-      case 'replay': {
+      case ClientMessageType.Replay: {
         // Client reconnected and wants missed messages since lastSequenceId
         const lastSeqRaw = m.lastSequenceId;
         const assets = m.assets;
         if (typeof lastSeqRaw !== 'number' || lastSeqRaw < 0) {
-          ws.send(JSON.stringify({ type: 'error', message: 'replay requires numeric lastSequenceId' }));
+          ws.send(JSON.stringify({ type: ServerMessageType.Error, message: 'replay requires numeric lastSequenceId' }));
           return;
         }
         if (assets !== undefined && !validateWsAssets(assets)) {
-          ws.send(JSON.stringify({ type: 'error', message: 'Invalid assets for replay' }));
+          ws.send(JSON.stringify({ type: ServerMessageType.Error, message: 'Invalid assets for replay' }));
           return;
         }
 
@@ -179,20 +180,20 @@ export class PriceWebSocketServer {
 
         for (const entry of missed) {
           if (ws.readyState === WebSocket.OPEN) {
-            ws.send(JSON.stringify({ type: 'price_update', replayed: true, sequenceId: entry.sequenceId, data: entry.data }));
+            ws.send(JSON.stringify({ type: ServerMessageType.PriceUpdate, replayed: true, sequenceId: entry.sequenceId, data: entry.data }));
             replayed++;
           }
         }
 
-        ws.send(JSON.stringify({ type: 'replay_complete', replayed, sequenceId: globalSequence }));
+        ws.send(JSON.stringify({ type: ServerMessageType.ReplayComplete, replayed, sequenceId: globalSequence }));
         break;
       }
-      case 'ping':
-        ws.send(JSON.stringify({ type: 'pong', timestamp: Math.floor(Date.now() / 1000), sequenceId: globalSequence }));
+      case ClientMessageType.Ping:
+        ws.send(JSON.stringify({ type: ServerMessageType.Pong, timestamp: Math.floor(Date.now() / 1000), sequenceId: globalSequence }));
         break;
       default:
         wsErrorsTotal.inc();
-        ws.send(JSON.stringify({ type: 'error', message: 'Unknown message type' }));
+        ws.send(JSON.stringify({ type: ServerMessageType.Error, message: 'Unknown message type' }));
     }
   }
 
@@ -214,7 +215,7 @@ export class PriceWebSocketServer {
   broadcast(data: any): void {
     const asset = data?.asset?.toUpperCase() || '_global';
     const seq = this.bufferMessage(asset, data);
-    const message = JSON.stringify({ type: 'price_update', sequenceId: seq, ...data });
+    const message = JSON.stringify({ type: ServerMessageType.PriceUpdate, sequenceId: seq, ...data });
     let sent = 0;
     this.clients.forEach((client) => {
       if (client.readyState === WebSocket.OPEN) {
@@ -228,7 +229,7 @@ export class PriceWebSocketServer {
   broadcastToSubscribers(priceUpdate: any): void {
     const asset = priceUpdate?.asset?.toUpperCase();
     const seq = this.bufferMessage(asset || '_global', priceUpdate);
-    const message = JSON.stringify({ type: 'price_update', sequenceId: seq, data: priceUpdate });
+    const message = JSON.stringify({ type: ServerMessageType.PriceUpdate, sequenceId: seq, data: priceUpdate });
     let sent = 0;
 
     this.clients.forEach((client) => {
@@ -240,7 +241,7 @@ export class PriceWebSocketServer {
       }
     });
 
-    if (sent > 0) wsMessagesTotal.inc({ direction: 'outbound', type: 'price_update' }, sent);
+    if (sent > 0) wsMessagesTotal.inc({ direction: 'outbound', type: ServerMessageType.PriceUpdate }, sent);
     this.invalidateCache(asset);
 
     // Fan out to registered webhooks for consumers without a WS connection.
