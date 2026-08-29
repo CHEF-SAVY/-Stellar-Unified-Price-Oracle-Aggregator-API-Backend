@@ -680,24 +680,17 @@ fn calculate_usd_price(env: &Env, asset: &String, price: i128, decimals: u32) ->
     if asset == &xlm {
         return Some(price);
     }
-
     let usdc = String::from_str(env, "USDC");
-    if let Some(usdc_anchor) = storage::get_latest_price(env, &usdc) {
-        if asset == &usdc {
-            return Some(10i128.pow(decimals));
-        }
-        if let Some(xlm_price) = storage::get_latest_price(env, &xlm) {
-            let base_asset_price = (price * xlm_price.price)
-                .checked_div(10i128.pow(xlm_price.decimals))?;
-            return Some(base_asset_price);
-        }
+    if asset == &usdc {
+        return 10i128.checked_pow(decimals);
     }
+    // All other assets are quoted in XLM: convert to USD via the stored
+    // XLM/USD price. Both prices are scaled by their own decimals, so the
+    // result is (price * xlm_price) / 10^(decimals + xlm_decimals). All
+    // arithmetic is checked so pathological decimal counts yield None
+    // instead of panicking.
     let xlm_price = storage::get_latest_price(env, &xlm)?;
-    // (price_in_xlm * xlm_usd_price) / 10^xlm_price.decimals -- uses
-    // xlm_price's own decimals, not usdc_anchor's, since
-    // xlm_price.price is scaled by xlm_price.decimals.
-    let usd_value = (price * xlm_price.price)
-        .checked_div(10i128.pow(xlm_price.decimals))?;
-        .checked_div(10i128.pow(usdc_anchor.decimals))?;
-    Some(usd_value)
+    let scale = decimals.saturating_add(xlm_price.decimals);
+    let divisor = 10i128.checked_pow(scale)?;
+    price.checked_mul(xlm_price.price)?.checked_div(divisor)
 }

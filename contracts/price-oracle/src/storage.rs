@@ -21,6 +21,10 @@ pub fn get_admin(env: &Env) -> Address {
         .expect("admin not initialized")
 }
 
+pub fn has_admin(env: &Env) -> bool {
+    env.storage().instance().has(&DataKey::Admin)
+}
+
 pub fn verify_admin(env: &Env, admin: &Address) -> Result<(), OracleError> {
     let stored: Address = env
         .storage()
@@ -293,6 +297,12 @@ pub fn set_msig_proposal_count(env: &Env, count: u32) {
     env.storage().instance().set(&DataKey::MultiSigProposalCount, &count);
 }
 
+/// Increment the multi-sig proposal counter (alias used by contract.rs and
+/// multisig.rs after creating a proposal).
+pub fn set_proposal_count(env: &Env, count: u32) {
+    env.storage().instance().set(&DataKey::MultiSigProposalCount, &count);
+}
+
 pub fn set_msig_proposal(env: &Env, proposal: &MultiSigProposal) {
     env.storage()
         .instance()
@@ -338,6 +348,10 @@ pub fn set_gov_proposal(env: &Env, proposal: &GovernanceProposal) {
         .set(&DataKey::GovernanceProposal(proposal.id), proposal);
 }
 
+pub fn get_gov_proposal(env: &Env, id: u32) -> Option<GovernanceProposal> {
+    env.storage().instance().get(&DataKey::GovernanceProposal(id))
+}
+
 pub fn set_multisig_proposal(env: &Env, proposal: &MultiSigProposal) {
     env.storage()
         .instance()
@@ -346,32 +360,6 @@ pub fn set_multisig_proposal(env: &Env, proposal: &MultiSigProposal) {
 
 pub fn get_multisig_proposal(env: &Env, id: u32) -> Option<MultiSigProposal> {
     env.storage().instance().get(&DataKey::MultiSigProposal(id))
-}
-
-// ── Governance ────────────────────────────────────────────────────────────────
-
-pub fn get_gov_config(env: &Env) -> Option<GovernanceConfig> {
-    env.storage().instance().get(&DataKey::GovernanceConfig)
-}
-
-pub fn set_gov_config(env: &Env, config: &GovernanceConfig) {
-    env.storage().instance().set(&DataKey::GovernanceConfig, config);
-}
-
-pub fn increment_proposal_count(env: &Env) -> u32 {
-    let count = get_proposal_count(env);
-    set_proposal_count(env, count + 1);
-    count + 1
-}
-
-pub fn set_gov_proposal(env: &Env, proposal: &GovernanceProposal) {
-    env.storage()
-        .instance()
-        .set(&DataKey::GovernanceProposal(proposal.id), proposal);
-}
-
-pub fn get_gov_proposal(env: &Env, id: u32) -> Option<GovernanceProposal> {
-    env.storage().instance().get(&DataKey::GovernanceProposal(id))
 }
 
 pub fn record_vote(env: &Env, proposal_id: u32, voter: &Address, support: bool) {

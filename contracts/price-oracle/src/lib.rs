@@ -1,8 +1,9 @@
-#![no_std]
+#![cfg_attr(not(test), no_std)]
 
 pub mod contract;
 mod errors;
 mod governance;
+mod merkle;
 mod multisig;
 mod proxy;
 pub mod storage;
