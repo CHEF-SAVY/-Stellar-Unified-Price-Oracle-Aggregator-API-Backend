@@ -29,7 +29,8 @@ function loadYamlFiles(dir: string): any[] {
 
 describe('Alert runbooks', () => {
   it('all P0/P1 alerts include a runbook_url annotation', () => {
-    const k8sDir = path.resolve(process.cwd(), '..', '..', 'k8s');
+    // Resolve repository root relative to this test file and locate `k8s`
+    const k8sDir = path.resolve(__dirname, '..', '..', 'k8s');
     const docsPrefix = '/docs/runbooks/';
     const yamlDocs = loadYamlFiles(k8sDir);
 
@@ -38,7 +39,17 @@ describe('Alert runbooks', () => {
     yamlDocs.forEach(({ doc, file }) => {
       if (!doc) return;
       // PrometheusRule structure
-      const groups = doc.spec?.groups || doc?.data?.['stellar-oracle-mesh.rules.yaml'] ? yaml.load(doc.data['stellar-oracle-mesh.rules.yaml'])?.groups : null;
+      let groups: any = null;
+      if (doc.spec && doc.spec.groups) {
+        groups = doc.spec.groups;
+      } else if (doc.data && doc.data['stellar-oracle-mesh.rules.yaml']) {
+        try {
+          const parsed = yaml.load(doc.data['stellar-oracle-mesh.rules.yaml']);
+          groups = parsed?.groups || null;
+        } catch (e) {
+          groups = null;
+        }
+      }
       if (!groups) return;
       groups.forEach((g: any) => {
         (g.rules || []).forEach((r: any) => {
