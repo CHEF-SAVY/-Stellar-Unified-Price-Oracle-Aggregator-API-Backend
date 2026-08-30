@@ -14,6 +14,10 @@ resources:
   - api/hpa.yaml
   - timescaledb/statefulset.yaml
   - timescaledb/service.yaml
+  - timescaledb/rbac.yaml
+  - timescaledb/configmap-pgbackrest.yaml
+  - timescaledb/cronjob-restore-test.yaml
+  - timescaledb/prometheus-rule.yaml
 
 commonLabels:
   app.kubernetes.io/part-of: stellar-oracle
