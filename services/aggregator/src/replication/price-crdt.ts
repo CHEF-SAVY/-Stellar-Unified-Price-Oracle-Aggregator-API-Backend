@@ -8,6 +8,9 @@ export interface RegionPriceRecord {
   timestamp: number;
   receivedAt: number;
   source: 'local' | 'remote';
+  /** W3C trace context carried across the replication bus (issue #419). */
+  traceparent?: string;
+  tracestate?: string;
 }
 
 export class LwwPriceRegister {
