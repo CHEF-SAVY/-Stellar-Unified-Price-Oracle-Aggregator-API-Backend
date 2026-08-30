@@ -5,6 +5,9 @@ resources:
   - configmap.yaml
   - secrets.yaml
   - networkpolicy.yaml
+  - prometheus-cardinality-rules.yaml
+  - synthetic-probes.yaml
+  - onchain-events-prometheus-rules.yaml
   - aggregator/deployment.yaml
   - aggregator/service.yaml
   - aggregator/hpa.yaml
