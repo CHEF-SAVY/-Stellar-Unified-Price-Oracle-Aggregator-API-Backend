@@ -186,6 +186,7 @@ jobs:
           BENCHMARK_BASE_URL: http://localhost:3000
           BENCHMARK_THRESHOLD_PCT: '20'
           BENCHMARK_ITERATIONS: '20'
+          BENCHMARK_TARGET_TPS: '100000'
 
       - name: Upload benchmark results
         if: always()
