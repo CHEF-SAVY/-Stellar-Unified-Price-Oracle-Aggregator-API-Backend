@@ -13,6 +13,7 @@ Welcome to the Stellar Unified Price Oracle Aggregator API documentation.
 - [Threat Model](./THREAT_MODEL.md) — mainnet trust boundaries, attacker profiles, mitigations
 - [Governance](./GOVERNANCE.md) — branch protection, signed commits, CODEOWNERS
 - [Developer Portal GA](./DEVELOPER_PORTAL.md) — portal capabilities, onboarding flow, and first-call readiness
+- [Consumer Sandbox and Testnet Environment](./SANDBOX_ENVIRONMENT.md) — isolated sandbox, seeded fixtures, and reset automation
 - [Sandbox Security Review](./SANDBOX_SECURITY_REVIEW.md) — programmable feed / plugin sandbox review
 
 ## Architecture overview
