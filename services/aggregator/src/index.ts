@@ -2,6 +2,7 @@ import { config } from './infrastructure/config';
 import { logger } from './observability/logger';
 import { ChainlinkSource, RedstoneSource, BandSource, ReflectorSource } from './oracle-sources';
 import { PriceAggregator } from './price-aggregation/aggregator';
+import { anomalyDetector } from './price-aggregation/anomaly-detector';
 import { AggregatedPrice } from './infrastructure/types';
 import { ContractPublisher } from './contract-publishing/publisher';
 import { appendHistoricalPrice } from './persistence/history';
@@ -222,6 +223,12 @@ async function main(): Promise<void> {
   logger.info('Stellar Price Oracle Aggregator starting...');
   logger.info(`Polling interval: ${config.pollingIntervalMs}ms`);
   logger.info(`Watched assets: ${config.assets.join(', ')}`);
+
+  for (const asset of config.assets) {
+    anomalyDetector.applyRuntimeConfig(asset);
+    const summary = anomalyDetector.getConfigSummary(asset);
+    logger.info(`[AnomalyConfig] ${asset}: zscore=${summary.config.zScoreThreshold}, deviation=${summary.config.movingAverageDeviationPercent}%, volatility=${summary.config.volatilityMultiplier}, false_positive_rate=${summary.falsePositiveRate.toFixed(3)}`);
+  }
 
   // Initialize Vault for contract admin key management
   try {
