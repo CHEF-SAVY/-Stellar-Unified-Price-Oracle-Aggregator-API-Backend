@@ -71,7 +71,9 @@ export function applyOffsetPagination<T>(
 ): { items: T[]; meta: OffsetPaginationMeta } {
   const total = items.length;
   const totalPages = Math.max(1, Math.ceil(total / limit));
-  const safePage = Math.min(page, totalPages);
+  // Clamp to [1, totalPages]: page 0 (or negative) must behave like page 1 and
+  // a page beyond the last page resolves to the final page.
+  const safePage = Math.min(Math.max(1, page), totalPages);
   const start = (safePage - 1) * limit;
   const paged = items.slice(start, start + limit);
 

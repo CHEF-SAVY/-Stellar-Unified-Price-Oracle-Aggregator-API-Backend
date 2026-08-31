@@ -17,6 +17,7 @@ import { eventBus } from '../domain-events';
 import complianceRoutes from '../governance/compliance';
 import { issueWsCsrfToken, isCsrfEnabled } from '../infrastructure/csrf';
 import { config } from '../infrastructure/config';
+import { ok, okCached, fail } from '../infrastructure/response';
 
 const router = Router();
 let pricesCache: HybridCache<any>;
@@ -56,25 +57,20 @@ router.get('/', (_req: Request, res: Response) => {
 
 router.get('/ws-token', (_req: Request, res: Response) => {
   if (!isCsrfEnabled()) {
-    return res.status(503).json({
-      success: false,
-      error: {
-        code: 'WS_CSRF_DISABLED',
-        message: 'WebSocket CSRF tokens are not enabled',
-      },
-    });
+    return res.status(503).json(
+      fail({ code: 'WS_CSRF_DISABLED', message: 'WebSocket CSRF tokens are not enabled' }),
+    );
   }
 
   const issuedAt = Date.now();
-  res.json({
-    success: true,
-    data: {
+  res.json(
+    ok({
       token: issueWsCsrfToken(),
       tokenType: 'Bearer',
       expiresInMs: config.ws.csrfTtlMs,
       expiresAt: new Date(issuedAt + config.ws.csrfTtlMs).toISOString(),
-    },
-  });
+    }),
+  );
 });
 
 // GET /prices — offset-paginated list of all asset prices
@@ -104,7 +100,7 @@ router.get('/prices', async (req: Request, res: Response) => {
   const cached = await pricesCache.get(cacheKey);
   if (cached) {
     cacheHitTotal.inc();
-    return res.json({ success: true, data: cached, cached: true });
+    return res.json(okCached(cached));
   }
   cacheMissTotal.inc();
 
@@ -138,7 +134,7 @@ router.get('/prices', async (req: Request, res: Response) => {
   );
 
   await pricesCache.set(cacheKey, data, 'prices');
-  res.json({ success: true, data });
+  res.json(ok(data));
 });
 
 router.get('/prices/:asset', async (req: Request, res: Response) => {
@@ -158,7 +154,7 @@ router.get('/prices/:asset', async (req: Request, res: Response) => {
   const cached = await pricesCache.get(cacheKey);
   if (cached) {
     cacheHitTotal.inc();
-    return res.json({ success: true, data: cached, cached: true });
+    return res.json(okCached(cached));
   }
   cacheMissTotal.inc();
 
@@ -167,10 +163,9 @@ router.get('/prices/:asset', async (req: Request, res: Response) => {
 
   if (!price) {
     // Issue #218: a missing asset is a client error (404), not a server error.
-    return res.status(404).json({
-      success: false,
-      error: { code: 'PRICE_NOT_FOUND', message: 'Price not found for the requested asset' },
-    });
+    return res.status(404).json(
+      fail({ code: 'PRICE_NOT_FOUND', message: 'Price not found for the requested asset' }),
+    );
   }
 
   priceQueriesTotal.inc({ asset });
@@ -184,7 +179,7 @@ router.get('/prices/:asset', async (req: Request, res: Response) => {
   );
 
   await pricesCache.set(cacheKey, data, 'price');
-  res.json({ success: true, data });
+  res.json(ok(data));
 });
 
 // GET /history/:asset — cursor-paginated time-series
@@ -211,7 +206,7 @@ router.get('/history/:asset', async (req: Request, res: Response) => {
   const cached = await pricesCache.get(cacheKey);
   if (cached) {
     cacheHitTotal.inc();
-    return res.json({ success: true, data: cached, cached: true });
+    return res.json(okCached(cached));
   }
   cacheMissTotal.inc();
 
@@ -226,7 +221,7 @@ router.get('/history/:asset', async (req: Request, res: Response) => {
   };
 
   await pricesCache.set(cacheKey, response, 'history');
-  res.json({ success: true, data: response });
+  res.json(ok(response));
 });
 
 // GET /history/:asset/legacy — original non-paginated endpoint kept for backward compatibility
@@ -253,7 +248,7 @@ router.get('/history/:asset/legacy', async (req: Request, res: Response) => {
   const cached = await pricesCache.get(cacheKey);
   if (cached) {
     cacheHitTotal.inc();
-    return res.json({ success: true, data: cached, cached: true });
+    return res.json(okCached(cached));
   }
   cacheMissTotal.inc();
 
@@ -267,7 +262,7 @@ router.get('/history/:asset/legacy', async (req: Request, res: Response) => {
   };
 
   await pricesCache.set(cacheKey, response, 'history');
-  res.json({ success: true, data: withLinks(response, links.history(asset)) });
+  res.json(ok(withLinks(response, links.history(asset))));
 });
 
 // GET /sources — offset-paginated
@@ -282,7 +277,7 @@ router.get('/sources', async (req: Request, res: Response) => {
   const cached = await pricesCache.get(cacheKey);
   if (cached) {
     cacheHitTotal.inc();
-    return res.json({ success: true, data: cached, cached: true });
+    return res.json(okCached(cached));
   }
   cacheMissTotal.inc();
 
@@ -297,7 +292,7 @@ router.get('/sources', async (req: Request, res: Response) => {
   const data = { sources, pagination };
 
   await pricesCache.set(cacheKey, data, 'sources');
-  res.json({ success: true, data });
+  res.json(ok(data));
 });
 
 router.get('/health/live', (_req: Request, res: Response) => {
@@ -316,7 +311,7 @@ router.get('/health', async (req: Request, res: Response) => {
   const cached = await pricesCache.get(cacheKey);
   if (cached) {
     cacheHitTotal.inc();
-    return res.json({ success: true, data: cached, cached: true });
+    return res.json(okCached(cached));
   }
   cacheMissTotal.inc();
 
@@ -349,7 +344,7 @@ router.get('/health', async (req: Request, res: Response) => {
   }
 
   await pricesCache.set(cacheKey, data, 'health');
-  res.status(status === 'unhealthy' ? 503 : 200).json({ success: true, data });
+  res.status(status === 'unhealthy' ? 503 : 200).json(ok(data));
 });
 
 export default router;
