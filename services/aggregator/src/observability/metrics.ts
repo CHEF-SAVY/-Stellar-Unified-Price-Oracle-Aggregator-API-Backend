@@ -3,6 +3,13 @@ import client from 'prom-client';
 const register = new client.Registry();
 client.collectDefaultMetrics({ register });
 
+export const serviceStartupDurationMs = new client.Gauge({
+  name: 'service_startup_duration_ms',
+  help: 'Time from process start until service warm-up finishes and the ready endpoint can pass',
+  labelNames: ['service'],
+  registers: [register],
+});
+
 // #63 — WebSocket connection monitoring
 export const wsConnectionsActive = new client.Gauge({
   name: 'ws_connections_active',

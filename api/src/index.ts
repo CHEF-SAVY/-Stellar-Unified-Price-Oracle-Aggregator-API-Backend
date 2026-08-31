@@ -10,7 +10,7 @@ import { logger } from './observability/logger';
 import { requestLogger } from './observability/request-logger';
 import { requestIdMiddleware } from './observability/request-id';
 import { errorHandler, notFoundHandler } from './infrastructure/error';
-import { metricsMiddleware, metricsHandler } from './observability/metrics';
+import { metricsMiddleware, metricsHandler, serviceStartupDurationMs } from './observability/metrics';
 import { authMiddleware, optionalAuthMiddleware } from './governance/auth';
 import { sanitizeInputs } from './governance/sanitization';
 import { httpsRedirect, hstsHeaders } from './infrastructure/https';
@@ -47,6 +47,7 @@ initializeTracing(config.tracing);
 
 const app = express();
 
+const startupStartedAt = Date.now();
 let db: DatabaseClient | null = null;
 let archival: ArchivalService | null = null;
 let dbHealthMonitor: DbHealthMonitor | null = null;
@@ -213,6 +214,10 @@ app.use(errorHandler);
 
 async function startServer(): Promise<void> {
   await initializeApp();
+
+  const startupDurationMs = Date.now() - startupStartedAt;
+  serviceStartupDurationMs.set({ service: 'api' }, startupDurationMs);
+  logger.info(`API startup complete in ${startupDurationMs}ms`);
 
   const server = app.listen(config.port, () => {
     logger.info(`REST API listening on port ${config.port}`);

@@ -9,7 +9,7 @@ import { appendUptimeSnapshot } from './persistence/uptime-history';
 import { FileArchivalService } from './persistence/file-archival';
 import { RegionPriceReplicator } from './replication/region-price-replicator';
 import { RegionQuarantineManager } from './replication/region-quarantine';
-import { oracleSourceUptimePercent, onChainPriceStalenessSeconds, onChainHeartbeatAlertsTotal } from './observability/metrics';
+import { oracleSourceUptimePercent, onChainPriceStalenessSeconds, onChainHeartbeatAlertsTotal, serviceStartupDurationMs } from './observability/metrics';
 import { DatabaseClient } from './persistence/database';
 import { BaseSource } from './oracle-sources/base';
 import { WebSocketServer } from './infrastructure/ws-server';
@@ -53,6 +53,8 @@ const alertManager = new AlertManager({
 });
 
 let lastAggregated: AggregatedPrice[] = [];
+const startupStartedAt = Date.now();
+let startupTimeMs = 0;
 // Issue #382 — on-chain price staleness heartbeat, seconds since last on-chain
 // update per asset; surfaced on the /health status page.
 const onChainHeartbeat: Record<string, number> = {};
@@ -301,11 +303,15 @@ async function main(): Promise<void> {
     circuitBreakerMetrics: aggregator.getCircuitBreakerMetrics(),
     circuitBreakerStates: sourceCircuitBreaker.getAllStatuses(),
     uptime: process.uptime(),
+    startupTimeMs,
     onChainHeartbeat,
   }));
   healthServer.start();
 
   await poll();
+  startupTimeMs = Date.now() - startupStartedAt;
+  serviceStartupDurationMs.set({ service: 'aggregator' }, startupTimeMs);
+  logger.info(`Aggregator startup complete in ${startupTimeMs}ms`);
 
   setInterval(async () => {
     try {

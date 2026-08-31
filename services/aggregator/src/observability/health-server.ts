@@ -10,6 +10,7 @@ interface HealthSnapshot {
   sourceHealth: Record<string, any>;
   lastAggregated: any[];
   uptime: number;
+  startupTimeMs?: number;
   region?: { region: string; quarantined: boolean; reason?: string };
   replicatedPrices?: any[];
   circuitBreakerMetrics?: any;
@@ -69,6 +70,7 @@ export class HealthServer {
           status: ready ? 'ready' : 'not_ready',
           hasPrices,
           quarantined,
+          startupTimeMs: snap.startupTimeMs ?? 0,
           openCircuitBreakers: openCircuits.length,
         }));
         return;
@@ -128,6 +130,7 @@ export class HealthServer {
           service: 'stellar-price-oracle-aggregator',
           status,
           uptime: snap.uptime,
+          startupTimeMs: snap.startupTimeMs ?? 0,
           region: snap.region,
           timestamp: Math.floor(Date.now() / 1000),
           sources: Object.entries(snap.sourceHealth).map(([name, h]: [string, any]) => ({
