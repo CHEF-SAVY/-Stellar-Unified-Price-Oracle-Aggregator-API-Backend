@@ -38,9 +38,13 @@ import sandboxRoutes, { initializeSandboxCache } from './routes/sandbox';
 import featureFlagRoutes from './routes/featureFlags';
 import eventRoutes from './routes/events';
 import governanceRoutes from './governance/proposal-routes';
+import selfServiceRoutes from './governance/self-service';
 import { uptimeTracker } from './observability/uptime-tracker';
 import { getVaultClient } from '@stellar-oracle/vault-client';
 import { apiKeyManager } from './governance/api-key-manager';
+import webhooksRoutes from './webhooks/webhooks';
+import graphqlRoutes from './graphql';
+import releaseNotesRoutes from './release-notes/router';
 
 // Initialize distributed tracing
 initializeTracing(config.tracing);
@@ -184,12 +188,17 @@ app.use('/api/v2/sources', optionalAuthMiddleware);
 app.use('/api/v2/health', optionalAuthMiddleware);
 
 // Routes — v1 tagged as deprecated, v2 is current
+app.use('/api/v1/webhooks', authMiddleware, webhooksRoutes);
+app.use('/api/v1/releases', releaseNotesRoutes);
+app.use('/api/v1/keys', selfServiceRoutes);
 app.use('/api/v1', v1DeprecationHeaders, v1Routes);
 app.use('/api/v1', v1DeprecationHeaders, platformRoutes);
 app.use('/api/v1/sandbox', sandboxRoutes);
 app.use('/api/v1/admin', adminRoutes);
 app.use('/api/v1/governance', governanceRoutes);
 app.use('/api/v2', v2Headers, v2Routes);
+app.use('/graphql', graphqlRoutes);
+app.use('/api/graphql', graphqlRoutes);
 
 // Feature flags — #117
 app.use('/api/feature-flags', featureFlagRoutes);
