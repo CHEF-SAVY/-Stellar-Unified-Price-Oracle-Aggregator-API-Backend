@@ -107,4 +107,19 @@ export const onChainHeartbeatAlertsTotal = new client.Counter({
   registers: [register],
 });
 
+export const contractSubmissionGas = new client.Histogram({
+  name: 'contract_submission_gas',
+  help: 'Gas used by Soroban contract submissions in stroops',
+  labelNames: ['function', 'asset', 'status'],
+  buckets: [1000, 5000, 10000, 50000, 100000, 500000, 1000000, 5000000, 10000000],
+  registers: [register],
+});
+
+export const contractSubmissionGasTotal = new client.Counter({
+  name: 'contract_submission_gas_total',
+  help: 'Total gas used by Soroban contract submissions',
+  labelNames: ['function', 'asset', 'status'],
+  registers: [register],
+});
+
 export { register };
