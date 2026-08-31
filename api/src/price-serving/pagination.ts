@@ -71,8 +71,8 @@ export function applyOffsetPagination<T>(
   limit: number,
 ): { items: T[]; meta: OffsetPaginationMeta } {
   const total = items.length;
-  const totalPages = Math.max(1, Math.ceil(total / limit));
-  const safePage = Math.min(page, totalPages);
+  const totalPages = total === 0 ? 0 : Math.ceil(total / limit);
+  const safePage = total === 0 ? 1 : Math.min(page, totalPages);
   const start = (safePage - 1) * limit;
   const paged = items.slice(start, start + limit);
 
@@ -84,8 +84,8 @@ export function applyOffsetPagination<T>(
       limit,
       total,
       totalPages,
-      hasNextPage: safePage < totalPages,
-      hasPrevPage: safePage > 1,
+      hasNextPage: totalPages > 0 && safePage < totalPages,
+      hasPrevPage: totalPages > 0 && safePage > 1,
     },
   };
 }
