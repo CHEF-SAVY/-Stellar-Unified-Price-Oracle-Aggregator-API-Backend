@@ -38,6 +38,7 @@ import sandboxRoutes, { initializeSandboxCache } from './routes/sandbox';
 import featureFlagRoutes from './routes/featureFlags';
 import eventRoutes from './routes/events';
 import governanceRoutes from './governance/proposal-routes';
+import { RegulatoryReportScheduler } from './governance/regulatory-reporting';
 import { uptimeTracker } from './observability/uptime-tracker';
 import { getVaultClient } from '@stellar-oracle/vault-client';
 import { apiKeyManager } from './governance/api-key-manager';
@@ -52,6 +53,7 @@ let archival: ArchivalService | null = null;
 let dbHealthMonitor: DbHealthMonitor | null = null;
 let consistencyChecker: DataConsistencyChecker | null = null;
 let backupService: BackupService | null = null;
+let regulatoryReportScheduler: RegulatoryReportScheduler | null = null;
 
 async function initializeApp(): Promise<void> {
   // Initialize Vault for API key and webhook secret management
@@ -111,6 +113,11 @@ async function initializeApp(): Promise<void> {
           encryptionKeyHex: config.backup.encryptionKeyHex || undefined,
         });
         backupService.start();
+      }
+
+      if (config.reporting?.enabled) {
+        regulatoryReportScheduler = new RegulatoryReportScheduler(db, logger, config.reporting);
+        regulatoryReportScheduler.start();
       }
 
       logger.info('PostgreSQL database connected');
@@ -239,6 +246,7 @@ async function startServer(): Promise<void> {
     if (dbHealthMonitor) dbHealthMonitor.stop();
     if (consistencyChecker) consistencyChecker.stop();
     if (backupService) backupService.stop();
+    if (regulatoryReportScheduler) regulatoryReportScheduler.stop();
     if (db) {
       db.disconnect().catch((err) => logger.error('Error disconnecting from database', err));
     }
