@@ -14,6 +14,7 @@ Welcome to the Stellar Unified Price Oracle Aggregator API documentation.
 - [Governance](./GOVERNANCE.md) — branch protection, signed commits, CODEOWNERS
 - [Developer Portal GA](./DEVELOPER_PORTAL.md) — portal capabilities, onboarding flow, and first-call readiness
 - [Consumer Sandbox and Testnet Environment](./SANDBOX_ENVIRONMENT.md) — isolated sandbox, seeded fixtures, and reset automation
+- [Gas Subsidization Strategy](./GAS_SUBSIDIZATION_STRATEGY.md) — treasury coverage, cost model, and alerting
 - [Sandbox Security Review](./SANDBOX_SECURITY_REVIEW.md) — programmable feed / plugin sandbox review
 
 ## Architecture overview

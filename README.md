@@ -50,6 +50,7 @@ A Soroban-based price oracle aggregator that pulls from **Chainlink**, **Redston
 - [`docs/index.md`](docs/index.md) — documentation home, architecture overview, and links to ADRs, runbooks, and the API reference
 - [`docs/DEVELOPER_PORTAL.md`](docs/DEVELOPER_PORTAL.md) — developer portal launch checklist and GA readiness notes
 - [`docs/SANDBOX_ENVIRONMENT.md`](docs/SANDBOX_ENVIRONMENT.md) — sandbox, seeded fixtures, and reset automation
+- [`docs/GAS_SUBSIDIZATION_STRATEGY.md`](docs/GAS_SUBSIDIZATION_STRATEGY.md) — treasury and gas-funding strategy
 - [`DEPLOY.md`](DEPLOY.md) — step-by-step deploy guide (local, Docker, Soroban contract)
 - [`INTEGRATION_TESTS.md`](INTEGRATION_TESTS.md) — integration test setup and execution
 - [`api/docs/API.md`](api/docs/API.md) — full REST + WebSocket API reference: auth, rate limiting, error codes, request/response examples
