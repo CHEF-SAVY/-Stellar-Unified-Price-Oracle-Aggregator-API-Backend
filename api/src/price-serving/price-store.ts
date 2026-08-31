@@ -134,7 +134,7 @@ export async function readPriceHistoryCursor(
   if (db && db.isInitialized()) {
     try {
       const from = afterTs !== undefined ? afterTs + 1 : undefined;
-      const history = await db.getHistoricalPrices(asset, from, to, limit);
+      const history = await db.getHistoricalPrices(asset, from, to, limit + 1);
       return history.map((h: any) => ({
         price: h.price as string,
         decimals: h.decimals as number,
@@ -154,7 +154,7 @@ export async function readPriceHistoryCursor(
     history.sort((a, b) => a.timestamp - b.timestamp);
     if (afterTs !== undefined) history = history.filter((h) => h.timestamp > afterTs!);
     if (to !== undefined) history = history.filter((h) => h.timestamp <= to);
-    return history.slice(0, limit);
+    return history.slice(0, limit + 1);
   } catch {
     return [];
   }

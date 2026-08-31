@@ -216,12 +216,13 @@ router.get('/history/:asset', async (req: Request, res: Response) => {
   cacheMissTotal.inc();
 
   const history = await readPriceHistoryCursor(upperAsset, cursor, limit, to);
+  const page = history.length > limit ? history.slice(0, limit) : history;
   const pagination = buildCursorMeta(history, limit, 'timestamp');
 
   const response = {
     asset: upperAsset,
     to: to || null,
-    prices: history,
+    prices: page,
     pagination,
   };
 
