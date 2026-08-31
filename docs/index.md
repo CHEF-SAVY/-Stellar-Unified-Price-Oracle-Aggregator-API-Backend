@@ -12,6 +12,11 @@ Welcome to the Stellar Unified Price Oracle Aggregator API documentation.
 - [OpenAPI spec](../api/src/services/openapi.ts) — Swagger UI at `/api/v1/docs`
 - [Threat Model](./THREAT_MODEL.md) — mainnet trust boundaries, attacker profiles, mitigations
 - [Governance](./GOVERNANCE.md) — branch protection, signed commits, CODEOWNERS
+- [Terms of Service](./terms-of-service.md) — service terms and consumer obligations
+- [Acceptable Use Policy](./acceptable-use-policy.md) — use limits, abuse prevention, and enforcement
+- [Service SLA](./service-sla.md) — SLO-aligned commitments for uptime and latency
+- [Fee Schedule](./fee-schedule.md) — billing model, paid tiers, and collection path
+- [Audit Log Retention](./audit-log-retention.md) — retention policy and tamper-evident log verification
 - [Sandbox Security Review](./SANDBOX_SECURITY_REVIEW.md) — programmable feed / plugin sandbox review
 
 ## Architecture overview
