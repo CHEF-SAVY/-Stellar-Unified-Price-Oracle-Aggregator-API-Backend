@@ -12,6 +12,7 @@ Welcome to the Stellar Unified Price Oracle Aggregator API documentation.
 - [OpenAPI spec](../api/src/services/openapi.ts) — Swagger UI at `/api/v1/docs`
 - [Threat Model](./THREAT_MODEL.md) — mainnet trust boundaries, attacker profiles, mitigations
 - [Governance](./GOVERNANCE.md) — branch protection, signed commits, CODEOWNERS
+- [Developer Portal GA](./DEVELOPER_PORTAL.md) — portal capabilities, onboarding flow, and first-call readiness
 - [Sandbox Security Review](./SANDBOX_SECURITY_REVIEW.md) — programmable feed / plugin sandbox review
 
 ## Architecture overview
