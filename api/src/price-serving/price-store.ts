@@ -87,6 +87,8 @@ export async function readPriceHistory(
   to?: number,
   limit = 100,
 ): Promise<HistoricalPriceEntry[]> {
+  if (from !== undefined && to !== undefined && from > to) return [];
+
   if (db && db.isInitialized()) {
     try {
       const history = await db.getHistoricalPrices(asset, from, to, limit);
@@ -125,6 +127,11 @@ export async function readPriceHistoryCursor(
   limit: number,
   to?: number,
 ): Promise<HistoricalPriceEntry[]> {
+  if (cursor) {
+    const decoded = decodeCursor(cursor);
+    if (decoded && to !== undefined && decoded.ts > to) return [];
+  }
+
   let afterTs: number | undefined;
   if (cursor) {
     const decoded = decodeCursor(cursor);
