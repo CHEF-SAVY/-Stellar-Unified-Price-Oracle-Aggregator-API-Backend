@@ -122,4 +122,12 @@ export const contractSubmissionGasTotal = new client.Counter({
   registers: [register],
 });
 
+export const pipelineStageLatencyMs = new client.Histogram({
+  name: 'pipeline_stage_latency_ms',
+  help: 'Latency budget for each stage of the price pipeline in milliseconds',
+  labelNames: ['stage', 'status'],
+  buckets: [1, 5, 10, 25, 50, 100, 250, 500, 1000, 2500, 5000, 10000],
+  registers: [register],
+});
+
 export { register };

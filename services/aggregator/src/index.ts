@@ -9,7 +9,7 @@ import { appendUptimeSnapshot } from './persistence/uptime-history';
 import { FileArchivalService } from './persistence/file-archival';
 import { RegionPriceReplicator } from './replication/region-price-replicator';
 import { RegionQuarantineManager } from './replication/region-quarantine';
-import { oracleSourceUptimePercent, onChainPriceStalenessSeconds, onChainHeartbeatAlertsTotal } from './observability/metrics';
+import { oracleSourceUptimePercent, onChainPriceStalenessSeconds, onChainHeartbeatAlertsTotal, pipelineStageLatencyMs } from './observability/metrics';
 import { DatabaseClient } from './persistence/database';
 import { BaseSource } from './oracle-sources/base';
 import { WebSocketServer } from './infrastructure/ws-server';
@@ -62,6 +62,7 @@ let pollSources: BaseSource[] = [];
 async function poll(): Promise<AggregatedPrice[]> {
   const sources: BaseSource[] = pollSources;
   const sourcePricesByAsset: Map<string, { source: string; price: string }[]> = new Map();
+  const sourceFetchStarted = performance.now();
 
   for (const source of sources) {
     const prices = await source.fetchAll(config.assets);
@@ -106,8 +107,15 @@ async function poll(): Promise<AggregatedPrice[]> {
     }
   }
 
+  pipelineStageLatencyMs.observe({ stage: 'source_fetch', status: 'ok' }, performance.now() - sourceFetchStarted);
+
+  const aggregationStarted = performance.now();
   const aggregated = aggregator.getAllPrices();
+  pipelineStageLatencyMs.observe({ stage: 'aggregation', status: 'ok' }, performance.now() - aggregationStarted);
+
+  const replicationStarted = performance.now();
   regionReplicator.mergeLocalPrices(aggregated);
+  pipelineStageLatencyMs.observe({ stage: 'replication', status: 'ok' }, performance.now() - replicationStarted);
   const allSourceNames = ['chainlink', 'redstone', 'band', 'reflector'];
   for (const ap of aggregated) {
     // Publish PriceAggregatedEvent
@@ -177,7 +185,9 @@ async function poll(): Promise<AggregatedPrice[]> {
 
   if (config.soroban.contractId) {
     const publisher = new ContractPublisher();
+    const publishStarted = performance.now();
     await publisher.publishAggregated(aggregated);
+    pipelineStageLatencyMs.observe({ stage: 'publish', status: 'ok' }, performance.now() - publishStarted);
 
     // Publish PricePublishedEvent
     eventBus.publish({
