@@ -37,17 +37,17 @@ export interface CursorPaginationMeta {
   nextCursor: string | null;
 }
 
-export function buildCursorMeta(
-  items: any[],
+export function buildCursorMeta<T extends { timestamp: number }>(
+  items: T[],
   limit: number,
-  timestampField: string,
+  timestampField: keyof T = 'timestamp',
 ): CursorPaginationMeta {
   const hasNextPage = items.length > limit;
   const pageItems = hasNextPage ? items.slice(0, limit) : items;
   const lastItem = pageItems[pageItems.length - 1];
   const nextCursor =
     hasNextPage && lastItem
-      ? encodeCursor({ ts: lastItem[timestampField], dir: 'asc' })
+      ? encodeCursor({ ts: lastItem[timestampField] as number, dir: 'asc' })
       : null;
 
   return { type: 'cursor', limit, count: pageItems.length, hasNextPage, nextCursor };
@@ -71,8 +71,10 @@ export function applyOffsetPagination<T>(
   limit: number,
 ): { items: T[]; meta: OffsetPaginationMeta } {
   const total = items.length;
-  const totalPages = total === 0 ? 0 : Math.ceil(total / limit);
-  const safePage = total === 0 ? 1 : Math.min(page, totalPages);
+  const totalPages = Math.max(1, Math.ceil(total / limit));
+  // Clamp to [1, totalPages]: page 0 (or negative) must behave like page 1 and
+  // a page beyond the last page resolves to the final page.
+  const safePage = Math.min(Math.max(1, page), totalPages);
   const start = (safePage - 1) * limit;
   const paged = items.slice(start, start + limit);
 
