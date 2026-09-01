@@ -13,20 +13,21 @@
 //   the current index is even (left child) or odd (right child).  The proof is
 //   valid iff the recomputed root matches the stored batch root.
 
-use soroban_sdk::{Bytes, Env};
+use soroban_sdk::{Bytes, Env, String};
 
 use crate::types::BatchPriceEntry;
 
-// Issue #385 — gas-based griefing bound.
-//
-// `apply_batch_entry` is permissionless, so an attacker could otherwise pass
-// an arbitrarily long sibling path and force the contract to burn gas on
-// hash operations in every block.  A valid Merkle proof for a batch of up to
-// 2^63 entries needs at most 63 siblings, so capping the accepted path here
-// bounds the per-call hashing cost without rejecting any legitimate proof.
-// The caller always pays for the gas their own proof consumes, but this cap
-// makes the worst case explicit and cheap to reason about.
-pub const MAX_PROOF_SIBLINGS: u32 = 64;
+// Soroban's `String` has no direct byte accessor; `copy_into_slice` requires an
+// exact-length buffer.  Asset symbols and strkey-encoded addresses are always
+// well under this cap in practice.
+const MAX_STRING_LEN: usize = 64;
+
+fn string_to_bytes(env: &Env, s: &String) -> Bytes {
+    let len = s.len() as usize;
+    let mut buf = [0u8; MAX_STRING_LEN];
+    s.copy_into_slice(&mut buf[..len]);
+    Bytes::from_slice(env, &buf[..len])
+}
 
 // ── Leaf encoding ─────────────────────────────────────────────────────────────
 
@@ -45,7 +46,7 @@ pub fn hash_leaf(env: &Env, entry: &BatchPriceEntry) -> Bytes {
     let mut buf = Bytes::new(env);
 
     // Asset string bytes
-    buf.append(&entry.asset.to_bytes());
+    buf.append(&string_to_bytes(env, &entry.asset));
     // Separator
     buf.push_back(0x00);
     // price: i128 as 16-byte big-endian
@@ -58,7 +59,7 @@ pub fn hash_leaf(env: &Env, entry: &BatchPriceEntry) -> Bytes {
     let ts_bytes = entry.timestamp.to_be_bytes();
     buf.append(&Bytes::from_array(env, &ts_bytes));
     // source address bytes (32 bytes for Stellar public key)
-    buf.append(&entry.source.to_string().to_bytes());
+    buf.append(&string_to_bytes(env, &entry.source.to_string()));
 
     env.crypto().sha256(&buf).into()
 }

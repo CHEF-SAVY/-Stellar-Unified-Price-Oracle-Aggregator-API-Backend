@@ -1,7 +1,7 @@
 use soroban_sdk::{Address, Bytes, BytesN, Env, String, Vec};
 
 use crate::errors::OracleError;
-use crate::types::{DataKey, GovernanceConfig, GovernanceProposal, MultiSigConfig, MultiSigProposal, PriceDataPoint, SourceReputation};
+use crate::types::{CanaryConfig, DataKey, GovernanceConfig, GovernanceProposal, MultiSigConfig, MultiSigProposal, PendingProxyUpgrade, PriceDataPoint, SourceReputation};
 
 // Maximum number of historical data points kept per asset.
 // Older entries beyond this cap are dropped on each write, keeping instance
@@ -182,6 +182,20 @@ pub fn get_price_history(env: &Env, asset: &String) -> Vec<PriceDataPoint> {
         .unwrap_or_else(|| Vec::new(env))
 }
 
+// Issue #376 — TTL / rent extension. Called periodically by an off-chain job
+// so PriceHistory (persistent) and the contract instance (Admin, GovConfig,
+// proposals, etc. — all instance storage) never hit their TTL floor and get
+// archived/evicted.
+pub fn extend_price_history_ttl(env: &Env, asset: &String, threshold: u32, extend_to: u32) {
+    env.storage()
+        .persistent()
+        .extend_ttl(&DataKey::PriceHistory(asset.clone()), threshold, extend_to);
+}
+
+pub fn extend_instance_ttl(env: &Env, threshold: u32, extend_to: u32) {
+    env.storage().instance().extend_ttl(threshold, extend_to);
+}
+
 pub fn get_all_assets(env: &Env) -> Vec<String> {
     env.storage()
         .instance()
@@ -356,12 +370,16 @@ pub fn get_multisig_config(env: &Env) -> Option<MultiSigConfig> {
 pub fn get_msig_proposal_count(env: &Env) -> u32 {
     env.storage()
         .instance()
-        .get(&DataKey::MultiSigProposalCount)
+        .get(&DataKey::ProposalCount)
         .unwrap_or(0)
 }
 
 pub fn set_msig_proposal_count(env: &Env, count: u32) {
-    env.storage().instance().set(&DataKey::MultiSigProposalCount, &count);
+    env.storage().instance().set(&DataKey::ProposalCount, &count);
+}
+
+pub fn set_proposal_count(env: &Env, count: u32) {
+    set_msig_proposal_count(env, count);
 }
 
 /// Increment the multi-sig proposal counter (alias used by contract.rs and
@@ -427,6 +445,10 @@ pub fn set_multisig_proposal(env: &Env, proposal: &MultiSigProposal) {
 
 pub fn get_multisig_proposal(env: &Env, id: u32) -> Option<MultiSigProposal> {
     env.storage().instance().get(&DataKey::MultiSigProposal(id))
+}
+
+pub fn get_gov_proposal(env: &Env, id: u32) -> Option<GovernanceProposal> {
+    env.storage().instance().get(&DataKey::GovernanceProposal(id))
 }
 
 pub fn record_vote(env: &Env, proposal_id: u32, voter: &Address, support: bool) {
@@ -568,4 +590,30 @@ pub fn set_slash_count(env: &Env, addr: &Address, count: &u32) {
     env.storage()
         .instance()
         .set(&DataKey::SlashCount(addr.clone()), count);
+}
+
+// ── Proxy upgrade governance (Issue #375) ───────────────────────────────────
+
+pub fn set_pending_upgrade(env: &Env, upgrade: &PendingProxyUpgrade) {
+    env.storage().instance().set(&DataKey::PendingProxyUpgrade, upgrade);
+}
+
+pub fn get_pending_upgrade(env: &Env) -> Option<PendingProxyUpgrade> {
+    env.storage().instance().get(&DataKey::PendingProxyUpgrade)
+}
+
+pub fn clear_pending_upgrade(env: &Env) {
+    env.storage().instance().remove(&DataKey::PendingProxyUpgrade);
+}
+
+pub fn set_canary_config(env: &Env, config: &CanaryConfig) {
+    env.storage().instance().set(&DataKey::CanaryConfig, config);
+}
+
+pub fn get_canary_config(env: &Env) -> Option<CanaryConfig> {
+    env.storage().instance().get(&DataKey::CanaryConfig)
+}
+
+pub fn clear_canary_config(env: &Env) {
+    env.storage().instance().remove(&DataKey::CanaryConfig);
 }
