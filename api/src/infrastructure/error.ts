@@ -37,7 +37,7 @@ export function errorHandler(
     message: appError.message,
     path: req.path,
     method: req.method,
-    requestId: (req as any).requestId,
+    requestId: req.requestId,
   });
 
   res.status(appError.status).json(appError.toResponseObject());

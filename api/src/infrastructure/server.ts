@@ -20,11 +20,17 @@ import {
 // Circular message buffer per asset for replay support
 const MESSAGE_BUFFER_SIZE = parseInt(process.env.WS_BUFFER_SIZE || '200', 10);
 
+interface PriceUpdatePayload {
+  asset?: string;
+  price?: number;
+  [key: string]: unknown;
+}
+
 interface BufferedMessage {
   sequenceId: number;
   asset: string;
   timestamp: number;
-  data: any;
+  data: PriceUpdatePayload;
 }
 
 let globalSequence = 0;
@@ -39,7 +45,7 @@ export class PriceWebSocketServer {
   private guard: WsUpgradeGuard;
   private clients: Set<WebSocket> = new Set();
   private subscriptions: Map<WebSocket, Set<string>> = new Map();
-  private cache: HybridCache<any> | null = null;
+  private cache: HybridCache<unknown> | null = null;
   private sweepTimer: NodeJS.Timeout | null = null;
   // Per-asset circular message buffer for replay on reconnect
   private messageBuffers: Map<string, BufferedMessage[]> = new Map();
@@ -197,7 +203,7 @@ export class PriceWebSocketServer {
     }
   }
 
-  private bufferMessage(asset: string, data: any): number {
+  private bufferMessage(asset: string, data: PriceUpdatePayload): number {
     const seq = nextSeq();
     const entry: BufferedMessage = { sequenceId: seq, asset, timestamp: Math.floor(Date.now() / 1000), data };
 
@@ -212,7 +218,7 @@ export class PriceWebSocketServer {
     return seq;
   }
 
-  broadcast(data: any): void {
+  broadcast(data: PriceUpdatePayload): void {
     const asset = data?.asset?.toUpperCase() || '_global';
     const seq = this.bufferMessage(asset, data);
     const message = JSON.stringify({ type: ServerMessageType.PriceUpdate, sequenceId: seq, ...data });
@@ -226,7 +232,7 @@ export class PriceWebSocketServer {
     if (sent > 0) wsMessagesTotal.inc({ direction: 'outbound', type: 'price_update' }, sent);
   }
 
-  broadcastToSubscribers(priceUpdate: any): void {
+  broadcastToSubscribers(priceUpdate: PriceUpdatePayload): void {
     const asset = priceUpdate?.asset?.toUpperCase();
     const seq = this.bufferMessage(asset || '_global', priceUpdate);
     const message = JSON.stringify({ type: ServerMessageType.PriceUpdate, sequenceId: seq, data: priceUpdate });
@@ -250,7 +256,7 @@ export class PriceWebSocketServer {
     }
   }
 
-  setCache(cache: HybridCache<any>): void {
+  setCache(cache: HybridCache<unknown>): void {
     this.cache = cache;
   }
 
