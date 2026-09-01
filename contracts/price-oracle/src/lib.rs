@@ -3,6 +3,7 @@
 pub mod contract;
 mod errors;
 mod governance;
+mod merkle;
 mod multisig;
 mod proxy;
 pub mod storage;

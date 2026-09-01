@@ -1,4 +1,4 @@
-use soroban_sdk::{contracttype, Address, Bytes, String, Vec};
+use soroban_sdk::{contracttype, Address, Bytes, BytesN, String, Vec};
 
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -115,45 +115,6 @@ pub enum ProposalAction {
     Unpause,
 }
 
-// ── Governance types ─────────────────────────────────────────────────────────
-
-#[contracttype]
-#[derive(Clone, Debug)]
-pub struct GovernanceConfig {
-    pub token: Address,
-    pub proposal_threshold: i128,
-    pub voting_period: u64,
-    pub timelock_delay: u64,
-    pub quorum: i128,
-    pub guardian: Address,
-}
-
-#[contracttype]
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub enum ProposalStatus {
-    Active,
-    Queued,
-    Ready,
-    Executed,
-    Defeated,
-    Cancelled,
-}
-
-#[contracttype]
-#[derive(Clone, Debug)]
-pub struct GovernanceProposal {
-    pub id: u32,
-    pub proposer: Address,
-    pub action: ProposalAction,
-    pub description: String,
-    pub votes_for: i128,
-    pub votes_against: i128,
-    pub voting_start: u64,
-    pub voting_end: u64,
-    pub execution_time: u64,
-    pub status: ProposalStatus,
-}
-
 // ── Multi-sig types ──────────────────────────────────────────────────────────
 
 #[contracttype]
@@ -212,6 +173,22 @@ pub struct GovernanceConfig {
     pub proposal_threshold: i128,
     /// Guardian address empowered to bypass timelock in emergencies.
     pub guardian: Address,
+}
+
+// Issue #375 — timelocked, quorum-gated proxy upgrades + canary rollout
+#[contracttype]
+#[derive(Clone, Debug)]
+pub struct PendingProxyUpgrade {
+    pub new_wasm_hash: BytesN<32>,
+    pub unlock_time: u64,
+    pub approvals: Vec<Address>,
+}
+
+#[contracttype]
+#[derive(Clone, Debug)]
+pub struct CanaryConfig {
+    pub candidate: Address,
+    pub share_bps: u32,
 }
 
 #[contracttype]

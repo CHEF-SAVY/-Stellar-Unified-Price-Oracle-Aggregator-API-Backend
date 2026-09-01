@@ -400,6 +400,21 @@ impl PriceOracleContract {
         result
     }
 
+    // -------------------------------------------------------------------------
+    // Issue #376 — TTL / rent extension. Permissionless: bumping TTL is never
+    // harmful, and gating it behind auth would only make the scheduled job
+    // more brittle. Intended to be called periodically (see docs/RENT_AND_TTL.md)
+    // for every tracked asset plus once for the contract instance.
+    // -------------------------------------------------------------------------
+
+    pub fn extend_price_history_ttl(env: Env, asset: String, threshold: u32, extend_to: u32) {
+        storage::extend_price_history_ttl(&env, &asset, threshold, extend_to);
+    }
+
+    pub fn extend_instance_ttl(env: Env, threshold: u32, extend_to: u32) {
+        storage::extend_instance_ttl(&env, threshold, extend_to);
+    }
+
     // ── Admin functions ───────────────────────────────────────────────────────
 
     pub fn add_oracle_source(
@@ -682,7 +697,7 @@ fn calculate_usd_price(env: &Env, asset: &String, price: i128, decimals: u32) ->
     }
 
     let usdc = String::from_str(env, "USDC");
-    if let Some(usdc_anchor) = storage::get_latest_price(env, &usdc) {
+    if let Some(_usdc_anchor) = storage::get_latest_price(env, &usdc) {
         if asset == &usdc {
             return Some(10i128.pow(decimals));
         }
@@ -698,6 +713,5 @@ fn calculate_usd_price(env: &Env, asset: &String, price: i128, decimals: u32) ->
     // xlm_price.price is scaled by xlm_price.decimals.
     let usd_value = (price * xlm_price.price)
         .checked_div(10i128.pow(xlm_price.decimals))?;
-        .checked_div(10i128.pow(usdc_anchor.decimals))?;
     Some(usd_value)
 }

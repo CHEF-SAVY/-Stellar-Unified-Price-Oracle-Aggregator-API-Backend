@@ -16,9 +16,12 @@
 
 #[cfg(test)]
 mod bench {
+    extern crate std;
+    use std::{println, vec, vec::Vec};
+
     use soroban_sdk::{
-        testutils::{Address as _, Budget},
-        Address, Env, String,
+        testutils::{budget::Budget, Address as _},
+        Address, Bytes, Env, String,
     };
 
     use crate::contract::{PriceOracleContract, PriceOracleContractClient};
@@ -27,6 +30,7 @@ mod bench {
 
     fn setup() -> (Env, PriceOracleContractClient<'static>, Address, Address) {
         let env = Env::default();
+        env.mock_all_auths();
         let id = env.register_contract(None, PriceOracleContract);
         let client = PriceOracleContractClient::new(&env, &id);
 
@@ -43,8 +47,8 @@ mod bench {
         let budget = env.budget();
         println!(
             "[BENCH] {label}: cpu_instructions={}, mem_bytes={}",
-            budget.cpu_instruction_count(),
-            budget.memory_bytes_count(),
+            budget.cpu_instruction_cost(),
+            budget.memory_bytes_cost(),
         );
     }
 
@@ -53,6 +57,7 @@ mod bench {
     #[test]
     fn bench_initialize() {
         let env = Env::default();
+        env.mock_all_auths();
         let id = env.register_contract(None, PriceOracleContract);
         let client = PriceOracleContractClient::new(&env, &id);
         let admin = Address::generate(&env);
@@ -215,11 +220,24 @@ mod bench {
         print_budget("set_trusted_asset", &env);
     }
 
+    // ── submit_batch (commit a Merkle root; Issue #378 mainnet budget) ───────
+
+    #[test]
+    fn bench_submit_batch() {
+        let (env, client, _admin, oracle) = setup();
+        let root = Bytes::from_array(&env, &[7u8; 32]);
+
+        env.budget().reset_default();
+        client.submit_batch(&oracle, &0u64, &root);
+        print_budget("submit_batch (commit root)", &env);
+    }
+
     // ── Multi-source submit (3 sources, measures realistic aggregator load) ───
 
     #[test]
     fn bench_multi_source_submit() {
         let env = Env::default();
+        env.mock_all_auths();
         let id = env.register_contract(None, PriceOracleContract);
         let client = PriceOracleContractClient::new(&env, &id);
 
