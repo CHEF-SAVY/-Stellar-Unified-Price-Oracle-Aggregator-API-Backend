@@ -1,7 +1,7 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 
-namespace: stellar-oracle-prod-us-east-1
+namespace: stellar-oracle-prod-ap-southeast-1
 
 resources:
   - namespace.yaml
@@ -16,20 +16,30 @@ patches:
     patch: |-
       - op: replace
         path: /data/PRIMARY_REGION
-        value: us-east-1
+        value: ap-southeast-1
       - op: replace
         path: /data/SECONDARY_REGION
-        value: eu-west-1
+        value: us-east-1
       - op: replace
         path: /data/REPLICATION_TARGET
-        value: eu-west-1
+        value: us-east-1
+  - target:
+      kind: ConfigMap
+      name: stellar-oracle-config
+    patch: |-
+      - op: add
+        path: /data/REGION_LATENCY_ZONE
+        value: apac
+      - op: add
+        path: /data/GEO_DNS_WEIGHT
+        value: "100"
   - target:
       kind: Deployment
       name: api-stable
     patch: |-
       - op: replace
         path: /spec/replicas
-        value: 3
+        value: 2
   - target:
       kind: Deployment
       name: api-canary
@@ -43,7 +53,7 @@ patches:
     patch: |-
       - op: replace
         path: /spec/replicas
-        value: 3
+        value: 2
   - path: geo-config-patch.yaml
     target:
       kind: ConfigMap

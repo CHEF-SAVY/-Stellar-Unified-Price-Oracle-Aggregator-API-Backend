@@ -128,6 +128,36 @@ jobs:
               body,
             });
 
+  kustomize-validate:
+    name: Kustomize overlay validation
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install kustomize
+        run: |
+          curl -s "https://raw.githubusercontent.com/kubernetes-sigs/kustomize/master/hack/install_kustomize.sh" | bash
+          mv kustomize /usr/local/bin/
+
+      - name: Validate dev overlay
+        run: kustomize build k8s/overlays/dev
+
+      - name: Validate staging overlay
+        run: kustomize build k8s/overlays/staging
+
+      - name: Validate prod overlay
+        run: kustomize build k8s/overlays/prod
+
+      - name: Validate prod-us-east-1 overlay
+        run: kustomize build k8s/overlays/prod-us-east-1
+
+      - name: Validate prod-eu-west-1 overlay
+        run: kustomize build k8s/overlays/prod-eu-west-1
+
+      - name: Validate prod-ap-southeast-1 overlay
+        run: kustomize build k8s/overlays/prod-ap-southeast-1
+
   benchmark:
     name: Performance regression check
     runs-on: ubuntu-latest
