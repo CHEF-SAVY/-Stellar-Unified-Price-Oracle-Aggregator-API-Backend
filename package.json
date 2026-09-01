@@ -24,6 +24,8 @@
     "plugin:test": "node scripts/plugin-test.mjs",
     "cost:analyze": "node scripts/analyze-infrastructure-costs.mjs",
     "cost:check": "node scripts/analyze-infrastructure-costs.mjs --check",
+    "cost:reconcile": "node scripts/reconcile-cost-invoices.mjs",
+    "validate:prices": "node scripts/validate-price-correctness.mjs",
     "rent:extend": "tsx scripts/extend-ttl-job.ts",
     "install:all": "npm install",
     "prepare": "husky"
