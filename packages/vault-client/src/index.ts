@@ -38,6 +38,7 @@ export interface ApiKeyEntry {
   key: string;
   tier: string;
   role: string;
+  scopes?: string[];
   rateLimitPerMin: number;
   description?: string;
   createdAt: number;
@@ -47,6 +48,7 @@ export interface ApiKeyEntry {
 export interface WebhookSecretEntry {
   webhookId: string;
   secret: string;
+  verificationKey?: string;
   apiKeyPrefix: string;
   createdAt: number;
 }
