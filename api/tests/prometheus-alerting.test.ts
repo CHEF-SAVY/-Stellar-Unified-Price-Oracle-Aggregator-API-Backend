@@ -1,3 +1,5 @@
+import fs from 'fs';
+import path from 'path';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import * as yaml from 'js-yaml';
 
@@ -420,6 +422,22 @@ describe('Prometheus Alerting Rules', () => {
 
       expect(routing.group_by).toBeDefined();
       expect(Array.isArray(routing.routes)).toBe(true);
+    });
+
+    it('should configure dedup, flap suppression, and inhibition in the production alertmanager config', () => {
+      const filePath = path.resolve(__dirname, '../../monitoring/alertmanager.yml');
+      expect(fs.existsSync(filePath)).toBe(true);
+
+      const config = yaml.load(fs.readFileSync(filePath, 'utf8')) as any;
+      expect(config.route.group_by).toEqual(expect.arrayContaining(['alertname', 'namespace', 'severity', 'asset']));
+      expect(config.route.group_wait).toBe('30s');
+      expect(config.route.group_interval).toBe('5m');
+      expect(config.route.repeat_interval).toBe('6h');
+      expect(config.route.routes.some((route: any) => route.receiver === 'pagerduty-critical')).toBe(true);
+      expect(config.inhibit_rules.some((rule: any) =>
+        rule.source_matchers?.includes('severity="critical"') &&
+        rule.target_matchers?.includes('severity="warning"'))
+      ).toBe(true);
     });
   });
 
