@@ -8,6 +8,7 @@ mod multisig;
 mod proxy;
 pub mod storage;
 mod types;
+mod utils;
 
 #[cfg(test)]
 mod test;
