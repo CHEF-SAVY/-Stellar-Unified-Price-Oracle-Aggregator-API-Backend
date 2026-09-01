@@ -1,9 +1,9 @@
 import { config } from './infrastructure/config';
+import { tryCatchAsync } from './infrastructure/result';
 import { logger } from './observability/logger';
 import { ChainlinkSource, RedstoneSource, BandSource, ReflectorSource } from './oracle-sources';
 import { PriceAggregator } from './price-aggregation/aggregator';
-import { anomalyDetector } from './price-aggregation/anomaly-detector';
-import { AggregatedPrice } from './infrastructure/types';
+import { AggregatedPrice, type OracleSourceName } from './infrastructure/types';
 import { ContractPublisher } from './contract-publishing/publisher';
 import { appendHistoricalPrice } from './persistence/history';
 import { appendUptimeSnapshot } from './persistence/uptime-history';
@@ -46,6 +46,7 @@ const alertManager = new AlertManager({
   webhookUrl: process.env.ALERT_WEBHOOK_URL ? decryptSecret(process.env.ALERT_WEBHOOK_URL) : undefined,
   slackWebhookUrl: process.env.ALERT_SLACK_WEBHOOK_URL ? decryptSecret(process.env.ALERT_SLACK_WEBHOOK_URL) : undefined,
   pagerDutyRoutingKey: process.env.ALERT_PAGERDUTY_ROUTING_KEY ? decryptSecret(process.env.ALERT_PAGERDUTY_ROUTING_KEY) : undefined,
+  opsGenieApiKey: process.env.ALERT_OPSGENIE_API_KEY ? decryptSecret(process.env.ALERT_OPSGENIE_API_KEY) : undefined,
   emailWebhookUrl: process.env.ALERT_EMAIL_WEBHOOK_URL ? decryptSecret(process.env.ALERT_EMAIL_WEBHOOK_URL) : undefined,
   emailRecipients: (process.env.ALERT_EMAIL_RECIPIENTS || '').split(',').map((s) => s.trim()).filter(Boolean),
   sourceDisagreementThresholdPercent: parseFloat(process.env.ALERT_SOURCE_DISAGREEMENT_PERCENT || '5'),
@@ -133,7 +134,7 @@ async function poll(): Promise<AggregatedPrice[]> {
 
     const participation: Record<string, number> = {};
     for (const src of allSourceNames) {
-      participation[src] = ap.sources.includes(src as any) ? 1 : 0;
+      participation[src] = ap.sources.includes(src as OracleSourceName) ? 1 : 0;
     }
     logger.debug(`[Metrics] Source participation for ${ap.asset}`, participation);
 
@@ -178,7 +179,14 @@ async function poll(): Promise<AggregatedPrice[]> {
 
   if (config.soroban.contractId) {
     const publisher = new ContractPublisher();
-    await publisher.publishAggregated(aggregated);
+    const published = await tryCatchAsync(() => publisher.publishAggregated(aggregated));
+    if (!published.ok) {
+      logger.error('Failed to publish aggregated prices to the contract', {
+        assetCount: aggregated.length,
+        error: published.error.message,
+        errorStack: published.error.stack,
+      });
+    }
 
     // Publish PricePublishedEvent
     eventBus.publish({

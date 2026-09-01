@@ -38,6 +38,7 @@ import sandboxRoutes, { initializeSandboxCache } from './routes/sandbox';
 import featureFlagRoutes from './routes/featureFlags';
 import eventRoutes from './routes/events';
 import governanceRoutes from './governance/proposal-routes';
+import { RegulatoryReportScheduler } from './governance/regulatory-reporting';
 import { uptimeTracker } from './observability/uptime-tracker';
 import { getVaultClient } from '@stellar-oracle/vault-client';
 import { apiKeyManager } from './governance/api-key-manager';
@@ -52,6 +53,7 @@ let archival: ArchivalService | null = null;
 let dbHealthMonitor: DbHealthMonitor | null = null;
 let consistencyChecker: DataConsistencyChecker | null = null;
 let backupService: BackupService | null = null;
+let regulatoryReportScheduler: RegulatoryReportScheduler | null = null;
 
 async function initializeApp(): Promise<void> {
   // Initialize Vault for API key and webhook secret management
@@ -113,6 +115,11 @@ async function initializeApp(): Promise<void> {
         backupService.start();
       }
 
+      if (config.reporting?.enabled) {
+        regulatoryReportScheduler = new RegulatoryReportScheduler(db, logger, config.reporting);
+        regulatoryReportScheduler.start();
+      }
+
       logger.info('PostgreSQL database connected');
     } catch (err) {
       logger.warn('Failed to connect to PostgreSQL, falling back to file-based storage', err);
@@ -123,7 +130,7 @@ async function initializeApp(): Promise<void> {
   }
 }
 
-const cache = new HybridCache<any>(logger, {
+const cache = new HybridCache<unknown>(logger, {
   redisUrl: config.redisUrl,
   fallbackToLru: true,
   priceTtl: config.priceCacheTtl,
@@ -239,6 +246,7 @@ async function startServer(): Promise<void> {
     if (dbHealthMonitor) dbHealthMonitor.stop();
     if (consistencyChecker) consistencyChecker.stop();
     if (backupService) backupService.stop();
+    if (regulatoryReportScheduler) regulatoryReportScheduler.stop();
     if (db) {
       db.disconnect().catch((err) => logger.error('Error disconnecting from database', err));
     }
@@ -279,7 +287,7 @@ function startSyntheticProbes(port: number): void {
     // WebSocket reachability (TCP connect check via health endpoint)
     try {
       const res = await fetch(`http://localhost:${port}/api/v1/health`);
-      const body = await res.json() as any;
+      const body = await res.json() as { data?: { status?: unknown } };
       const wsStatus = body?.data?.status === 'healthy' ? true : body?.data?.status !== 'unhealthy';
       uptimeTracker.recordCheck('WebSocket', wsStatus);
     } catch {
