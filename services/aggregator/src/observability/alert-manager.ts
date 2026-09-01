@@ -3,6 +3,7 @@ import path from 'path';
 import { AggregatedPrice } from '../infrastructure/types';
 import { logger } from './logger';
 import { WebSocketServer } from '../infrastructure/ws-server';
+import { resolveEscalationRoute } from './escalation-policy';
 
 export interface AlertThresholds {
   asset: string;
@@ -36,6 +37,8 @@ export interface AlertConfig {
   slackWebhookUrl?: string;
   /** PagerDuty Events API v2 integration/routing key */
   pagerDutyRoutingKey?: string;
+  /** Opsgenie API key for routed incidents */
+  opsGenieApiKey?: string;
   /** Generic transactional email API webhook (e.g. SendGrid/Mailgun) */
   emailWebhookUrl?: string;
   emailRecipients?: string[];
@@ -269,12 +272,24 @@ class AlertManager {
     this.recordAlertTrigger(dedupKey, now);
     this.alertHistory.push(alert);
 
+    const escalation = resolveEscalationRoute({
+      type: alert.type,
+      asset: alert.asset,
+      message: alert.message,
+    });
+
     if (this.config.enableConsoleLog) {
-      this.logToConsole(alert);
+      this.logToConsole({
+        ...alert,
+        message: `${alert.message} | escalation=${escalation.severity}/${escalation.primaryChannel}/${escalation.primaryTarget}`,
+      });
     }
 
     if (this.config.enableFileLog && this.config.alertHistoryPath) {
-      this.logToFile(alert);
+      this.logToFile({
+        ...alert,
+        message: `${alert.message} | escalation=${escalation.severity}/${escalation.primaryChannel}/${escalation.primaryTarget}`,
+      });
     }
 
     const wss = WebSocketServer.getInstance();
@@ -292,6 +307,10 @@ class AlertManager {
 
     if (this.config.pagerDutyRoutingKey) {
       await this.sendPagerDuty(alert);
+    }
+
+    if (this.config.opsGenieApiKey) {
+      await this.sendOpsgenie(alert);
     }
 
     if (this.config.emailWebhookUrl) {
@@ -365,6 +384,37 @@ class AlertManager {
       }
     } catch (error) {
       logger.error('Failed to deliver PagerDuty alert:', (error as Error).message);
+    }
+  }
+
+  private async sendOpsgenie(alert: AlertEvent): Promise<void> {
+    try {
+      const priority = alert.type === 'source_down' || alert.type === 'sla_breach' ? 'P1' : 'P3';
+      const response = await fetch('https://api.opsgenie.com/v2/alerts', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `GenieKey ${this.config.opsGenieApiKey}`,
+        },
+        body: JSON.stringify({
+          message: alert.message,
+          description: `${alert.asset}: ${alert.type} alert triggered. Runbook: docs/runbooks/README.md`,
+          alias: `${alert.asset}:${alert.type}`,
+          priority,
+          tags: ['price-oracle', alert.asset, alert.type],
+          details: {
+            asset: alert.asset,
+            type: alert.type,
+            summary: alert.message,
+            timestamp: alert.timestamp,
+          },
+        }),
+      });
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+    } catch (error) {
+      logger.error('Failed to deliver Opsgenie alert:', (error as Error).message);
     }
   }
 
