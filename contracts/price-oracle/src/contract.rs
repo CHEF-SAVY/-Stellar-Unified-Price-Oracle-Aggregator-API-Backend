@@ -148,6 +148,11 @@ impl PriceOracleContract {
             return Err(OracleError::InvalidMerkleProof);
         }
 
+        // Issue #385 — each (batch, leaf) pair can be applied exactly once; a
+        // repeated apply of an already-applied leaf fails with
+        // BatchEntryAlreadyApplied instead of writing a duplicate history entry.
+        storage::mark_batch_leaf_applied(&env, batch_nonce, proof.leaf_index)?;
+
         let data_point = PriceDataPoint {
             asset: entry.asset.clone(),
             price: entry.price,
@@ -165,6 +170,23 @@ impl PriceOracleContract {
         );
 
         Ok(data_point)
+    }
+
+    pub fn get_batch_nonce(env: Env) -> u64 {
+        storage::get_batch_nonce(&env)
+    }
+
+    /// Read-only inclusion check used by off-chain tooling and tests.
+    pub fn verify_batch_proof(
+        env: Env,
+        batch_nonce: u64,
+        entry: BatchPriceEntry,
+        proof: MerkleProof,
+    ) -> bool {
+        let Some(root) = storage::get_batch_root(&env, batch_nonce) else {
+            return false;
+        };
+        merkle::verify_proof(&env, &entry, proof.leaf_index, &proof.siblings, &root)
     }
 
     // -------------------------------------------------------------------------
@@ -393,6 +415,21 @@ impl PriceOracleContract {
         result
     }
 
+    // -------------------------------------------------------------------------
+    // Issue #376 — TTL / rent extension. Permissionless: bumping TTL is never
+    // harmful, and gating it behind auth would only make the scheduled job
+    // more brittle. Intended to be called periodically (see docs/RENT_AND_TTL.md)
+    // for every tracked asset plus once for the contract instance.
+    // -------------------------------------------------------------------------
+
+    pub fn extend_price_history_ttl(env: Env, asset: String, threshold: u32, extend_to: u32) {
+        storage::extend_price_history_ttl(&env, &asset, threshold, extend_to);
+    }
+
+    pub fn extend_instance_ttl(env: Env, threshold: u32, extend_to: u32) {
+        storage::extend_instance_ttl(&env, threshold, extend_to);
+    }
+
     // ── Admin functions ───────────────────────────────────────────────────────
 
     pub fn add_oracle_source(
@@ -558,4 +595,40 @@ fn apply_proposal_action(env: &Env, action: &ProposalAction) -> Result<(), Oracl
         _ => {}
     }
     Ok(())
+}
+
+fn vec_contains_address(vec: &Vec<Address>, target: &Address) -> bool {
+    for i in 0..vec.len() {
+        if let Some(addr) = vec.get(i) {
+            if &addr == target {
+                return true;
+            }
+        }
+    }
+    false
+}
+
+fn calculate_usd_price(env: &Env, asset: &String, price: i128, decimals: u32) -> Option<i128> {
+    let xlm = String::from_str(env, "XLM");
+    if asset == &xlm {
+        return Some(price);
+    }
+    let usdc = String::from_str(env, "USDC");
+    if let Some(_usdc_anchor) = storage::get_latest_price(env, &usdc) {
+        if asset == &usdc {
+            return Some(10i128.pow(decimals));
+        }
+        if let Some(xlm_price) = storage::get_latest_price(env, &xlm) {
+            let base_asset_price = (price * xlm_price.price)
+                .checked_div(10i128.pow(xlm_price.decimals))?;
+            return Some(base_asset_price);
+        }
+    }
+    let xlm_price = storage::get_latest_price(env, &xlm)?;
+    // (price_in_xlm * xlm_usd_price) / 10^xlm_price.decimals -- uses
+    // xlm_price's own decimals, not usdc_anchor's, since
+    // xlm_price.price is scaled by xlm_price.decimals.
+    let usd_value = (price * xlm_price.price)
+        .checked_div(10i128.pow(xlm_price.decimals))?;
+    Some(usd_value)
 }
