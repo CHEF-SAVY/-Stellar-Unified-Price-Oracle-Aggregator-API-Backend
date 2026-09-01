@@ -7,6 +7,7 @@ import {
 } from './validation';
 import { readAssetPrices, readPriceHistory, readPriceHistoryCursor } from './price-store';
 import { buildCursorMeta, applyOffsetPagination } from './pagination';
+import type { ApiPrice } from '@stellar-oracle/types';
 import { HybridCache } from './cache';
 import { cacheHitTotal, cacheMissTotal, lastPriceTimestamp, priceQueriesTotal } from '../observability/metrics';
 import { links, withLinks } from './hypermedia';
@@ -20,11 +21,11 @@ import { config } from '../infrastructure/config';
 import { ok, okCached, fail } from '../infrastructure/response';
 
 const router = Router();
-let pricesCache: HybridCache<any>;
+let pricesCache: HybridCache<unknown>;
 
 router.use(complianceRoutes);
 
-export function initializeCache(cache: HybridCache<any>): void {
+export function initializeCache(cache: HybridCache<unknown>): void {
   pricesCache = cache;
 }
 
@@ -106,7 +107,7 @@ router.get('/prices', async (req: Request, res: Response) => {
 
   const prices = await readAssetPrices();
   const filtered = assetQuery.data.asset
-    ? prices.filter((p) => p.asset === assetQuery.data.asset?.toUpperCase())
+    ? prices.filter((p: ApiPrice) => p.asset === assetQuery.data.asset?.toUpperCase())
     : prices;
 
   for (const p of filtered) {
@@ -319,7 +320,7 @@ router.get('/health', async (req: Request, res: Response) => {
   const hasStale = prices.some((p) => Date.now() / 1000 - p.timestamp > 120);
   const status = prices.length === 0 ? 'unhealthy' : hasStale ? 'degraded' : 'healthy';
 
-  const data: Record<string, any> = {
+  const data: Record<string, unknown> = {
     service: 'stellar-price-oracle-api',
     status,
     uptime: process.uptime(),

@@ -2,14 +2,29 @@ import { z } from 'zod';
 import { Router, Request, Response } from 'express';
 import { AssetQuerySchema, HistoryQuerySchema, formatValidationResponse } from './validation';
 import { readAssetPrices, readPriceHistory } from './price-store';
+import type { ApiPrice } from '@stellar-oracle/types';
 import { HybridCache } from './cache';
 import { cacheHitTotal, cacheMissTotal, lastPriceTimestamp, priceQueriesTotal } from '../observability/metrics';
 import { v2Ok, v2Fail } from '../infrastructure/response';
 
-const router = Router();
-let pricesCache: HybridCache<any>;
+type PriceConfidence = 'high' | 'medium' | 'low';
 
-export function initializeCacheV2(cache: HybridCache<any>): void {
+type EnrichedPrice = Omit<ApiPrice, 'confidence'> & {
+  sourceCount: number;
+  confidence: PriceConfidence;
+};
+
+function priceConfidence(price: ApiPrice): PriceConfidence {
+  const n = Array.isArray(price.sources) ? price.sources.length : 1;
+  if (n >= 3) return 'high';
+  if (n >= 2) return 'medium';
+  return 'low';
+}
+
+const router = Router();
+let pricesCache: HybridCache<unknown>;
+
+export function initializeCacheV2(cache: HybridCache<unknown>): void {
   pricesCache = cache;
 }
 
@@ -189,7 +204,7 @@ router.get('/prices/batch', async (req: Request, res: Response) => {
   const allPrices = await readAssetPrices();
   const priceMap = new Map(allPrices.map((p) => [p.asset, p]));
 
-  const results: Array<{ asset: string; price?: any; error?: string }> = [];
+  const results: Array<{ asset: string; price?: EnrichedPrice; error?: string }> = [];
   for (const asset of upperAssets) {
     const price = priceMap.get(asset);
     if (price) {
@@ -200,7 +215,7 @@ router.get('/prices/batch', async (req: Request, res: Response) => {
         price: {
           ...price,
           sourceCount: Array.isArray(price.sources) ? price.sources.length : 1,
-          confidence: Array.isArray(price.sources) ? (price.sources.length >= 3 ? 'high' : price.sources.length >= 2 ? 'medium' : 'low') : 'low',
+          confidence: priceConfidence(price),
         },
       });
     } else {
@@ -239,7 +254,7 @@ router.post('/prices/batch', async (req: Request, res: Response) => {
   const allPrices = await readAssetPrices();
   const priceMap = new Map(allPrices.map((p) => [p.asset, p]));
 
-  const results: Array<{ asset: string; price?: any; error?: string }> = [];
+  const results: Array<{ asset: string; price?: EnrichedPrice; error?: string }> = [];
   for (const asset of upperAssets) {
     const price = priceMap.get(asset);
     if (price) {
@@ -250,7 +265,7 @@ router.post('/prices/batch', async (req: Request, res: Response) => {
         price: {
           ...price,
           sourceCount: Array.isArray(price.sources) ? price.sources.length : 1,
-          confidence: Array.isArray(price.sources) ? (price.sources.length >= 3 ? 'high' : price.sources.length >= 2 ? 'medium' : 'low') : 'low',
+          confidence: priceConfidence(price),
         },
       });
     } else {
@@ -346,7 +361,7 @@ router.get('/health', async (req: Request, res: Response) => {
   const hasStale = prices.some((p) => Date.now() / 1000 - p.timestamp > 120);
   const status = prices.length === 0 ? 'unhealthy' : hasStale ? 'degraded' : 'healthy';
 
-  const data: Record<string, any> = {
+  const data: Record<string, unknown> = {
     service: 'stellar-price-oracle-api',
     version: '2',
     status,

@@ -38,6 +38,8 @@ export class AppError extends Error {
       title: this.title,
       status: this.status,
       detail: this.message,
+      code: this.code,
+      message: this.message,
       instance: this.instance,
       ...(this.context && { context: this.context }),
     };

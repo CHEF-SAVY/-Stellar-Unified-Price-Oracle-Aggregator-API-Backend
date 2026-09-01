@@ -1,7 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import type { ApiPrice, HistoricalPriceEntry } from '@stellar-oracle/types';
-import { DatabaseClient } from '../infrastructure/database';
+import { DatabaseClient, type PriceHistory } from '../infrastructure/database';
 import { decrypt, encrypt, isEncrypted, isEncryptionConfigured } from '../governance/crypto';
 import { decodeCursor } from './pagination';
 
@@ -43,12 +43,12 @@ export async function readAssetPrices(): Promise<ApiPrice[]> {
   if (db && db.isInitialized()) {
     try {
       const prices = await db.getAllLatestPrices();
-      return prices.map((p: any) => ({
-        asset: p.asset as string,
-        price: p.price as string,
-        decimals: p.decimals as number,
-        source: p.source as string,
-        timestamp: p.timestamp as number,
+      return prices.map((p: PriceHistory) => ({
+        asset: p.asset,
+        price: p.price,
+        decimals: p.decimals,
+        source: p.source,
+        timestamp: p.timestamp,
       }));
     } catch (err) {
       console.error('Failed to read from database, falling back to files', err);
@@ -90,11 +90,11 @@ export async function readPriceHistory(
   if (db && db.isInitialized()) {
     try {
       const history = await db.getHistoricalPrices(asset, from, to, limit);
-      return history.map((h: any) => ({
-        price: h.price as string,
-        decimals: h.decimals as number,
-        source: h.source as string,
-        timestamp: h.timestamp as number,
+      return history.map((h: PriceHistory) => ({
+        price: h.price,
+        decimals: h.decimals,
+        source: h.source,
+        timestamp: h.timestamp,
       }));
     } catch (err) {
       console.error('Failed to read from database, falling back to files', err);
@@ -135,11 +135,11 @@ export async function readPriceHistoryCursor(
     try {
       const from = afterTs !== undefined ? afterTs + 1 : undefined;
       const history = await db.getHistoricalPrices(asset, from, to, limit);
-      return history.map((h: any) => ({
-        price: h.price as string,
-        decimals: h.decimals as number,
-        source: h.source as string,
-        timestamp: h.timestamp as number,
+      return history.map((h: PriceHistory) => ({
+        price: h.price,
+        decimals: h.decimals,
+        source: h.source,
+        timestamp: h.timestamp,
       }));
     } catch (err) {
       console.error('Failed to read from database for cursor query, falling back to files', err);
