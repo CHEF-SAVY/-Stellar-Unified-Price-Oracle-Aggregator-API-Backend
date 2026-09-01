@@ -63,10 +63,9 @@ export function sendError(
     code: appError.code,
     status: appError.status,
     message: appError.message,
-    path,
-    method,
-    requestId,
-    ...context,
+    path: req.path,
+    method: req.method,
+    requestId: req.requestId,
   });
 
   res.status(appError.status).json(appError.toResponseObject());

@@ -78,6 +78,22 @@ function parseProposalStatus(value: unknown): ProposalStatus | undefined {
     : undefined;
 }
 
+function messageOf(err: unknown): string {
+  if (err instanceof Error) return err.message;
+  if (typeof err === 'string') return err;
+  return 'Internal error';
+}
+
+const VALID_STATUSES = new Set<ProposalStatus>([
+  'Active', 'Queued', 'Ready', 'Executed', 'Defeated', 'Cancelled',
+]);
+
+function parseProposalStatus(value: unknown): ProposalStatus | undefined {
+  return typeof value === 'string' && VALID_STATUSES.has(value as ProposalStatus)
+    ? (value as ProposalStatus)
+    : undefined;
+}
+
 function callerAddress(req: Request): string {
   // In production, the caller's Stellar address would be derived from their
   // authenticated session or provided explicitly in the request body.
@@ -93,8 +109,9 @@ router.get('/multisig/config', async (_req: Request, res: Response) => {
       return sendErrorResponse(res, 404, 'NOT_INITIALIZED', 'Multi-sig has not been initialized', { path: '/governance/multisig/config' });
     }
     res.json({ success: true, data: config });
-  } catch (err) {
-    sendError(res, err, { path: '/governance/multisig/config', method: 'GET' });
+  } catch (err: unknown) {
+    logger.error('Failed to fetch multi-sig config', err);
+    errorResponse(res, 500, 'INTERNAL', messageOf(err) || 'Internal error');
   }
 });
 
@@ -121,8 +138,9 @@ router.post('/multisig/proposals', async (req: Request, res: Response) => {
     });
 
     res.status(201).json({ success: true, data: proposal });
-  } catch (err) {
-    sendError(res, err, { path: '/governance/multisig/proposals', method: 'POST' });
+  } catch (err: unknown) {
+    logger.error('Failed to create multi-sig proposal', err);
+    errorResponse(res, 400, messageOf(err), messageOf(err) || 'Failed to create proposal');
   }
 });
 
@@ -134,8 +152,9 @@ router.get('/multisig/proposals', async (req: Request, res: Response) => {
       limit: parseInt(req.query.limit as string, 10) || 20,
     });
     res.json({ success: true, data: result });
-  } catch (err) {
-    sendError(res, err, { path: '/governance/multisig/proposals', method: 'GET' });
+  } catch (err: unknown) {
+    logger.error('Failed to list multi-sig proposals', err);
+    errorResponse(res, 500, 'INTERNAL', messageOf(err) || 'Internal error');
   }
 });
 
@@ -149,8 +168,9 @@ router.get('/multisig/proposals/:id', async (req: Request, res: Response) => {
       return sendErrorResponse(res, 404, 'NOT_FOUND', `Proposal ${id} not found`, { path: '/governance/multisig/proposals/:id', method: 'GET' });
     }
     res.json({ success: true, data: proposal });
-  } catch (err) {
-    sendError(res, err, { path: '/governance/multisig/proposals/:id', method: 'GET' });
+  } catch (err: unknown) {
+    logger.error('Failed to fetch multi-sig proposal', err);
+    errorResponse(res, 500, 'INTERNAL', messageOf(err) || 'Internal error');
   }
 });
 
@@ -170,8 +190,9 @@ router.post('/multisig/proposals/:id/approve', async (req: Request, res: Respons
     });
 
     res.json({ success: true, data: proposal });
-  } catch (err) {
-    sendError(res, err, { path: '/governance/multisig/proposals/:id/approve', method: 'POST' });
+  } catch (err: unknown) {
+    logger.error('Failed to approve multi-sig proposal', err);
+    errorResponse(res, 400, messageOf(err), messageOf(err) || 'Failed to approve');
   }
 });
 
@@ -189,8 +210,9 @@ router.post('/multisig/proposals/:id/execute', async (req: Request, res: Respons
     });
 
     res.json({ success: true, data: proposal });
-  } catch (err) {
-    sendError(res, err, { path: '/governance/multisig/proposals/:id/execute', method: 'POST' });
+  } catch (err: unknown) {
+    logger.error('Failed to execute multi-sig proposal', err);
+    errorResponse(res, 400, messageOf(err), messageOf(err) || 'Failed to execute');
   }
 });
 
@@ -203,8 +225,9 @@ router.get('/config', async (_req: Request, res: Response) => {
       return sendErrorResponse(res, 404, 'NOT_INITIALIZED', 'Governance has not been initialized', { path: '/governance/config', method: 'GET' });
     }
     res.json({ success: true, data: config });
-  } catch (err) {
-    sendError(res, err, { path: '/governance/config', method: 'GET' });
+  } catch (err: unknown) {
+    logger.error('Failed to fetch governance config', err);
+    errorResponse(res, 500, 'INTERNAL', messageOf(err) || 'Internal error');
   }
 });
 
@@ -234,8 +257,9 @@ router.post('/proposals', async (req: Request, res: Response) => {
     });
 
     res.status(201).json({ success: true, data: proposal });
-  } catch (err) {
-    sendError(res, err, { path: '/governance/proposals', method: 'POST' });
+  } catch (err: unknown) {
+    logger.error('Failed to create governance proposal', err);
+    errorResponse(res, 400, messageOf(err), messageOf(err) || 'Failed to create proposal');
   }
 });
 
@@ -248,8 +272,9 @@ router.get('/proposals', async (req: Request, res: Response) => {
       limit: parseInt(req.query.limit as string, 10) || 20,
     });
     res.json({ success: true, data: result });
-  } catch (err) {
-    sendError(res, err, { path: '/governance/proposals', method: 'GET' });
+  } catch (err: unknown) {
+    logger.error('Failed to list governance proposals', err);
+    errorResponse(res, 500, 'INTERNAL', messageOf(err) || 'Internal error');
   }
 });
 
@@ -263,8 +288,9 @@ router.get('/proposals/:id', async (req: Request, res: Response) => {
       return sendErrorResponse(res, 404, 'NOT_FOUND', `Proposal ${id} not found`, { path: '/governance/proposals/:id', method: 'GET' });
     }
     res.json({ success: true, data: proposal });
-  } catch (err) {
-    sendError(res, err, { path: '/governance/proposals/:id', method: 'GET' });
+  } catch (err: unknown) {
+    logger.error('Failed to fetch governance proposal', err);
+    errorResponse(res, 500, 'INTERNAL', messageOf(err) || 'Internal error');
   }
 });
 
@@ -290,8 +316,9 @@ router.post('/proposals/:id/vote', async (req: Request, res: Response) => {
     });
 
     res.json({ success: true, data: proposal });
-  } catch (err) {
-    sendError(res, err, { path: '/governance/proposals/:id/vote', method: 'POST' });
+  } catch (err: unknown) {
+    logger.error('Failed to cast vote', err);
+    errorResponse(res, 400, messageOf(err), messageOf(err) || 'Failed to vote');
   }
 });
 
@@ -303,8 +330,9 @@ router.post('/proposals/:id/queue', async (req: Request, res: Response) => {
     const proposal = await proposalService.queueProposal(id);
 
     res.json({ success: true, data: proposal });
-  } catch (err) {
-    sendError(res, err, { path: '/governance/proposals/:id/queue', method: 'POST' });
+  } catch (err: unknown) {
+    logger.error('Failed to queue proposal', err);
+    errorResponse(res, 400, messageOf(err), messageOf(err) || 'Failed to queue');
   }
 });
 
@@ -321,8 +349,9 @@ router.post('/proposals/:id/execute', async (req: Request, res: Response) => {
     });
 
     res.json({ success: true, data: proposal });
-  } catch (err) {
-    sendError(res, err, { path: '/governance/proposals/:id/execute', method: 'POST' });
+  } catch (err: unknown) {
+    logger.error('Failed to execute governance proposal', err);
+    errorResponse(res, 400, messageOf(err), messageOf(err) || 'Failed to execute');
   }
 });
 
@@ -342,8 +371,9 @@ router.post('/proposals/:id/cancel', async (req: Request, res: Response) => {
     });
 
     res.json({ success: true, data: proposal });
-  } catch (err) {
-    sendError(res, err, { path: '/governance/proposals/:id/cancel', method: 'POST' });
+  } catch (err: unknown) {
+    logger.error('Failed to cancel proposal', err);
+    errorResponse(res, 400, messageOf(err), messageOf(err) || 'Failed to cancel');
   }
 });
 
@@ -363,8 +393,9 @@ router.post('/proposals/:id/emergency-execute', async (req: Request, res: Respon
     });
 
     res.json({ success: true, data: proposal });
-  } catch (err) {
-    sendError(res, err, { path: '/governance/proposals/:id/emergency-execute', method: 'POST' });
+  } catch (err: unknown) {
+    logger.error('Failed to emergency-execute proposal', err);
+    errorResponse(res, 400, messageOf(err), messageOf(err) || 'Failed to emergency-execute');
   }
 });
 
@@ -377,8 +408,9 @@ router.get('/proposals/:id/has-voted', async (req: Request, res: Response) => {
     const voted = await proposalService.hasVoted(id, voter);
 
     res.json({ success: true, data: { proposalId: id, voter: voter.substring(0, 8), hasVoted: voted } });
-  } catch (err) {
-    sendError(res, err, { path: '/governance/proposals/:id/has-voted', method: 'GET' });
+  } catch (err: unknown) {
+    logger.error('Failed to check vote', err);
+    errorResponse(res, 500, 'INTERNAL', messageOf(err) || 'Internal error');
   }
 });
 
@@ -414,8 +446,9 @@ router.get('/summary', async (_req: Request, res: Response) => {
         timestamp: new Date().toISOString(),
       },
     });
-  } catch (err) {
-    sendError(res, err, { path: '/governance/summary', method: 'GET' });
+  } catch (err: unknown) {
+    logger.error('Failed to generate governance summary', err);
+    errorResponse(res, 500, 'INTERNAL', messageOf(err) || 'Internal error');
   }
 });
 
