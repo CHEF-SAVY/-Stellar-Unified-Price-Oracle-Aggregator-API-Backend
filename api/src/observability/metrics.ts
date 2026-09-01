@@ -5,6 +5,13 @@ const register = new client.Registry();
 
 client.collectDefaultMetrics({ register });
 
+export const serviceStartupDurationMs = new client.Gauge({
+  name: 'service_startup_duration_ms',
+  help: 'Time from process startup until the service accepts ready traffic',
+  labelNames: ['service'],
+});
+register.registerMetric(serviceStartupDurationMs);
+
 export const httpRequestDuration = new client.Histogram({
   name: 'http_request_duration_seconds',
   help: 'Duration of HTTP requests in seconds',

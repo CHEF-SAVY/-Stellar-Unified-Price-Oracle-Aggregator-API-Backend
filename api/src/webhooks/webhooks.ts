@@ -1,6 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { z } from 'zod';
-import { webhookService } from './webhook-service';
+import { webhookService, type WebhookRegistration } from './webhook-service';
 import { links, withLinks } from '../price-serving/hypermedia';
 
 const router = Router();
@@ -37,7 +37,7 @@ router.post('/', (req: Request, res: Response) => {
 });
 
 router.get('/', (req: Request, res: Response) => {
-  const data = webhookService.list(keyPrefixOf(req)).map((w: any) => withLinks(w, links.webhook(w.id)));
+  const data = webhookService.list(keyPrefixOf(req)).map((w: WebhookRegistration) => withLinks(w, links.webhook(w.id)));
   res.json({ success: true, data, _links: links.root() });
 });
 

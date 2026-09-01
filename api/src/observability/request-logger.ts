@@ -6,9 +6,9 @@ export function requestLogger(req: Request, res: Response, next: NextFunction): 
   const startedAt = Date.now();
 
   logger.info(`${req.method} ${req.path}`, {
-    requestId: (req as any).requestId,
-    traceId: (req as any).traceId,
-    spanId: (req as any).spanId,
+    requestId: req.requestId,
+    traceId: req.traceId,
+    spanId: req.spanId,
     query: req.query,
     ip: req.ip,
   });
