@@ -1,4 +1,5 @@
 import { config } from './infrastructure/config';
+import { tryCatchAsync } from './infrastructure/result';
 import { logger } from './observability/logger';
 import { ChainlinkSource, RedstoneSource, BandSource, ReflectorSource } from './oracle-sources';
 import { PriceAggregator } from './price-aggregation/aggregator';
@@ -177,7 +178,14 @@ async function poll(): Promise<AggregatedPrice[]> {
 
   if (config.soroban.contractId) {
     const publisher = new ContractPublisher();
-    await publisher.publishAggregated(aggregated);
+    const published = await tryCatchAsync(() => publisher.publishAggregated(aggregated));
+    if (!published.ok) {
+      logger.error('Failed to publish aggregated prices to the contract', {
+        assetCount: aggregated.length,
+        error: published.error.message,
+        errorStack: published.error.stack,
+      });
+    }
 
     // Publish PricePublishedEvent
     eventBus.publish({
