@@ -42,14 +42,15 @@ export function buildCursorMeta<T extends { timestamp: number }>(
   limit: number,
   timestampField: keyof T = 'timestamp',
 ): CursorPaginationMeta {
-  const hasNextPage = items.length === limit;
-  const lastItem = items[items.length - 1];
+  const hasNextPage = items.length > limit;
+  const pageItems = hasNextPage ? items.slice(0, limit) : items;
+  const lastItem = pageItems[pageItems.length - 1];
   const nextCursor =
     hasNextPage && lastItem
       ? encodeCursor({ ts: lastItem[timestampField] as number, dir: 'asc' })
       : null;
 
-  return { type: 'cursor', limit, count: items.length, hasNextPage, nextCursor };
+  return { type: 'cursor', limit, count: pageItems.length, hasNextPage, nextCursor };
 }
 
 // ── Offset pagination helpers ─────────────────────────────────────────────────
@@ -85,8 +86,8 @@ export function applyOffsetPagination<T>(
       limit,
       total,
       totalPages,
-      hasNextPage: safePage < totalPages,
-      hasPrevPage: safePage > 1,
+      hasNextPage: totalPages > 0 && safePage < totalPages,
+      hasPrevPage: totalPages > 0 && safePage > 1,
     },
   };
 }
