@@ -66,6 +66,7 @@ let pollSources: BaseSource[] = [];
 async function poll(): Promise<AggregatedPrice[]> {
   const sources: BaseSource[] = pollSources;
   const sourcePricesByAsset: Map<string, { source: string; price: string }[]> = new Map();
+  const sourceFetchStarted = performance.now();
 
   for (const source of sources) {
     const prices = await source.fetchAll(config.assets);
@@ -110,8 +111,15 @@ async function poll(): Promise<AggregatedPrice[]> {
     }
   }
 
+  pipelineStageLatencyMs.observe({ stage: 'source_fetch', status: 'ok' }, performance.now() - sourceFetchStarted);
+
+  const aggregationStarted = performance.now();
   const aggregated = aggregator.getAllPrices();
+  pipelineStageLatencyMs.observe({ stage: 'aggregation', status: 'ok' }, performance.now() - aggregationStarted);
+
+  const replicationStarted = performance.now();
   regionReplicator.mergeLocalPrices(aggregated);
+  pipelineStageLatencyMs.observe({ stage: 'replication', status: 'ok' }, performance.now() - replicationStarted);
   const allSourceNames = ['chainlink', 'redstone', 'band', 'reflector'];
   for (const ap of aggregated) {
     // Publish PriceAggregatedEvent

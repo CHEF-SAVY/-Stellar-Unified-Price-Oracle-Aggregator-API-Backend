@@ -10,6 +10,7 @@ import {
 import { config } from '../infrastructure/config';
 import { logger } from '../observability/logger';
 import { AggregatedPrice } from '../infrastructure/types';
+import { contractSubmissionGas, contractSubmissionGasTotal } from '../observability/metrics';
 import { SubmissionRetryQueue } from './retry-queue';
 
 interface ContractCallLog {
@@ -192,6 +193,11 @@ export class ContractPublisher {
       const sendResponse: SendResponse = await this.server.sendTransaction(tx);
       const actualFee = sendResponse?.fee ?? simulationFee;
       const feeNum = parseInt(String(actualFee), 10);
+
+      if (!Number.isNaN(feeNum)) {
+        contractSubmissionGas.observe({ function: fnName, asset, status: 'success' }, feeNum);
+        contractSubmissionGasTotal.inc({ function: fnName, asset, status: 'success' }, feeNum);
+      }
 
       emitContractLog({
         txHash,
