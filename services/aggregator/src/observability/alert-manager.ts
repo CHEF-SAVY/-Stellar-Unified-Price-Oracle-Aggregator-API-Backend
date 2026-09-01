@@ -179,6 +179,35 @@ class AlertManager {
   }
 
   /**
+   * Issue #382 — on-chain price staleness heartbeat.
+   *
+   * Unlike checkPrice()'s `stale` check (which watches the aggregator's own
+   * in-memory price cache), this watches the timestamp actually stored on
+   * the oracle contract, so it still fires if the contract silently stops
+   * receiving submissions even though the aggregator process looks healthy.
+   * Returns whether the asset is currently stale, for the caller's metrics.
+   */
+  async checkOnChainHeartbeat(
+    asset: string,
+    latestOnChainTimestamp: number,
+    thresholdSeconds: number,
+  ): Promise<boolean> {
+    const ageSeconds = Math.floor(Date.now() / 1000) - latestOnChainTimestamp;
+    const isStale = ageSeconds > thresholdSeconds;
+    if (isStale) {
+      await this.emitAlert({
+        timestamp: Math.floor(Date.now() / 1000),
+        asset,
+        type: 'stale',
+        message: `On-chain price heartbeat stale for ${asset}: ${ageSeconds}s since last on-chain update (threshold: ${thresholdSeconds}s). Runbook: docs/runbooks/price-feed-stale.md`,
+        elapsedSeconds: ageSeconds,
+        thresholdSeconds,
+      });
+    }
+    return isStale;
+  }
+
+  /**
    * Detects disagreement between live oracle sources for the same asset,
    * independent of the temporal deviation check in checkPrice().
    */

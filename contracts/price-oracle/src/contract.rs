@@ -41,6 +41,13 @@ impl PriceOracleContract {
     ) -> Result<PriceDataPoint, OracleError> {
         source.require_auth();
 
+        // Issue #379 — a multi-sig-guarded emergency pause halts submission
+        // globally; reads (get_price/get_price_history) remain unaffected so
+        // every region keeps serving cached data during the freeze.
+        if storage::is_paused(&env) {
+            return Err(OracleError::ContractPaused);
+        }
+
         if !storage::is_authorized_source(&env, &source) {
             return Err(OracleError::UnauthorizedSource);
         }
@@ -74,7 +81,7 @@ impl PriceOracleContract {
         append_history(&env, &asset, data_point.clone());
 
         env.events()
-            .publish(("price_submitted", asset, source), (price, decimals, timestamp));
+            .publish(("price_submitted", asset, source), (price, timestamp));
 
         Ok(data_point)
     }
@@ -100,6 +107,12 @@ impl PriceOracleContract {
     ) -> Result<u64, OracleError> {
         source.require_auth();
 
+        // Issue #379 — batch commits are a submission path too and must
+        // honor the same global emergency pause as submit_price.
+        if storage::is_paused(&env) {
+            return Err(OracleError::ContractPaused);
+        }
+
         if !storage::is_authorized_source(&env, &source) {
             return Err(OracleError::UnauthorizedSource);
         }
@@ -113,7 +126,8 @@ impl PriceOracleContract {
         storage::set_batch_root(&env, nonce, &root);
         let new_nonce = storage::increment_batch_nonce(&env);
 
-        env.events().publish(("batch_committed", source, nonce), root);
+        env.events()
+            .publish(("batch_submitted", source), (nonce, root));
 
         Ok(new_nonce)
     }
@@ -153,8 +167,8 @@ impl PriceOracleContract {
         append_history(&env, &entry.asset, data_point.clone());
 
         env.events().publish(
-            ("batch_entry_applied", entry.asset.clone(), entry.source.clone()),
-            (batch_nonce, entry.price, entry.decimals, entry.timestamp),
+            ("batch_entry_applied", entry.asset.clone()),
+            (batch_nonce, entry.price),
         );
 
         Ok(data_point)
@@ -313,6 +327,10 @@ impl PriceOracleContract {
 
         proposal.executed = 1;
         storage::set_multisig_proposal(&env, &proposal);
+
+        env.events()
+            .publish(("governance_executed", signer), proposal_id);
+
         Ok(())
     }
 
@@ -322,6 +340,19 @@ impl PriceOracleContract {
 
     pub fn get_multisig_config(env: Env) -> Option<MultiSigConfig> {
         storage::get_multisig_config(&env)
+    }
+
+    // -------------------------------------------------------------------------
+    // Issue #379 — multi-region aware emergency pause
+    // -------------------------------------------------------------------------
+
+    /// Read-only pause flag. Off-chain aggregators in every region poll this
+    /// on their normal cycle and skip submission while it is `true`, so all
+    /// regions honor the freeze within one poll cycle without a separate
+    /// off-chain coordination bus — the chain itself is the single source of
+    /// truth for pause state.
+    pub fn is_paused(env: Env) -> bool {
+        storage::is_paused(&env)
     }
 
     // -------------------------------------------------------------------------
@@ -471,6 +502,25 @@ impl PriceOracleContract {
     pub fn get_stake_balance(env: Env, source: Address) -> i128 {
         storage::get_stake(&env, &source)
     }
+
+    // -------------------------------------------------------------------------
+    // Issue #376 — scheduled TTL / rent extension
+    // -------------------------------------------------------------------------
+
+    /// Extend the TTL of every persistent price-history entry plus the
+    /// shared instance storage entry (Admin, GovernanceConfig,
+    /// GovernanceProposal, MultiSigConfig) so state never expires between
+    /// scheduled rent-payment runs. Callable by anyone — it only pays rent
+    /// and cannot mutate oracle state, so no admin auth is required.
+    pub fn extend_storage_ttl(env: Env) {
+        storage::extend_instance_ttl(&env);
+        let assets = storage::get_all_assets(&env);
+        for i in 0..assets.len() {
+            if let Some(asset) = assets.get(i) {
+                storage::extend_price_history_ttl(&env, &asset);
+            }
+        }
+    }
 }
 
 // -------------------------------------------------------------------------
@@ -617,6 +667,12 @@ fn apply_proposal_action(env: &Env, action: &ProposalAction) -> Result<(), Oracl
                 config.threshold = *new_threshold;
                 storage::set_multisig_config(env, &config);
             }
+        }
+        ProposalAction::Pause => {
+            storage::set_paused(env, true);
+        }
+        ProposalAction::Unpause => {
+            storage::set_paused(env, false);
         }
         _ => {}
     }

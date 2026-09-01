@@ -110,6 +110,9 @@ pub enum ProposalAction {
     AddOracleSource(Address, String),
     RemoveOracleSource(Address),
     UpdateGovernanceConfig(GovernanceConfig),
+    // Issue #379 — multi-region aware emergency pause
+    Pause,
+    Unpause,
 }
 
 // ── Multi-sig types ──────────────────────────────────────────────────────────
@@ -229,7 +232,10 @@ pub enum DataKey {
     PostQuantumAdminKey(String),
     PostQuantumKeyLog(u32),
     PostQuantumKeyLogCount,
-    // Issue #375 — proxy upgrade governance + canary
-    PendingProxyUpgrade,
-    CanaryConfig,
+    // Issue #375 — proxy upgrade timelock + canary
+    PendingUpgradeHash,
+    PendingUpgradeEta,
+    UpgradeApprovals,
+    CanaryImplementation,
+    CanaryTrafficShareBps,
 }

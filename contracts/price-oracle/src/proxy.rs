@@ -2,7 +2,7 @@ use soroban_sdk::{contract, contractimpl, Address, Bytes, BytesN, Env, String, V
 
 use crate::errors::OracleError;
 use crate::storage;
-use crate::types::{AssetPrice, CanaryConfig, MultiSigConfig, PendingProxyUpgrade, PriceDataPoint, SourceReputation};
+use crate::types::{AssetPrice, MultiSigConfig, PriceDataPoint, SourceReputation};
 
 // Issue #68: Proxy contract with upgradeability via WASM hash replacement.
 //
@@ -31,23 +31,10 @@ impl ProxyContract {
     }
 
     // -------------------------------------------------------------------------
-    // Issue #68 — WASM-level upgrade (Soroban native upgradeability)
-    // Replaces the running WASM while preserving all storage.
+    // Issue #375 — multi-sig configuration for the upgrade quorum.
     // -------------------------------------------------------------------------
 
-    // -------------------------------------------------------------------------
-    // Issue #375 — timelock + quorum gate on WASM upgrades.
-    //
-    // Flow: propose_upgrade (admin, starts timelock) → approve_upgrade (each
-    // multisig signer, if a MultiSigConfig is set) → upgrade_wasm (admin,
-    // only once the timelock has elapsed and quorum is met).
-    // -------------------------------------------------------------------------
-
-    /// Configure (or replace) the signer set and threshold that gate
-    /// `upgrade_wasm` once a proposal's timelock has elapsed. Distinct from
-    /// `MultiSigAdminContract`: this quorum lives on the proxy's own
-    /// instance storage since only the proxy's admin can invoke it.
-    pub fn init_upgrade_quorum(
+    pub fn init_multisig(
         env: Env,
         admin: Address,
         signers: Vec<Address>,
@@ -55,27 +42,74 @@ impl ProxyContract {
     ) -> Result<(), OracleError> {
         admin.require_auth();
         storage::verify_admin(&env, &admin)?;
-
-        if threshold == 0 || (threshold as usize) > signers.len() as usize {
+        if threshold == 0 || threshold as usize > signers.len() as usize {
             return Err(OracleError::InvalidThreshold);
         }
-
         storage::set_multisig_config(&env, &MultiSigConfig { signers, threshold });
         Ok(())
     }
 
-    pub fn get_upgrade_quorum(env: Env) -> Option<MultiSigConfig> {
-        storage::get_multisig_config(&env)
-    }
+    // -------------------------------------------------------------------------
+    // Issue #375 — WASM-level upgrade, gated by multi-sig quorum + timelock.
+    //
+    // Lifecycle: propose_upgrade → approve_upgrade (×N until quorum) →
+    // execute_upgrade (only once the timelock ETA has passed). Requires a
+    // multi-sig config to already be set via the oracle's `init_multisig`.
+    // -------------------------------------------------------------------------
 
     pub fn propose_upgrade(
         env: Env,
         admin: Address,
         new_wasm_hash: BytesN<32>,
-        timelock_secs: u64,
-    ) -> Result<(), OracleError> {
+    ) -> Result<u64, OracleError> {
         admin.require_auth();
         storage::verify_admin(&env, &admin)?;
+        storage::get_multisig_config(&env).ok_or(OracleError::MultiSigNotInitialized)?;
+
+        let eta = env.ledger().timestamp() + UPGRADE_TIMELOCK_SECS;
+        storage::set_pending_upgrade(&env, &new_wasm_hash, eta);
+
+        env.events()
+            .publish(("upgrade_proposed", admin), (new_wasm_hash, eta));
+        Ok(eta)
+    }
+
+    pub fn approve_upgrade(env: Env, signer: Address) -> Result<u32, OracleError> {
+        signer.require_auth();
+
+        let config = storage::get_multisig_config(&env).ok_or(OracleError::MultiSigNotInitialized)?;
+        if !vec_contains_address(&config.signers, &signer) {
+            return Err(OracleError::NotASigner);
+        }
+        storage::get_pending_upgrade(&env).ok_or(OracleError::UpgradeNotProposed)?;
+
+        let approvals = storage::get_upgrade_approvals(&env);
+        if vec_contains_address(&approvals, &signer) {
+            return Err(OracleError::UpgradeAlreadyApproved);
+        }
+
+        storage::record_upgrade_approval(&env, &signer);
+        let count = storage::get_upgrade_approvals(&env).len();
+
+        env.events().publish(("upgrade_approved", signer), count);
+        Ok(count)
+    }
+
+    pub fn execute_upgrade(env: Env, caller: Address) -> Result<(), OracleError> {
+        caller.require_auth();
+
+        let new_wasm_hash =
+            storage::get_pending_upgrade(&env).ok_or(OracleError::UpgradeNotProposed)?;
+        let eta = storage::get_pending_upgrade_eta(&env).unwrap_or(u64::MAX);
+        if env.ledger().timestamp() < eta {
+            return Err(OracleError::UpgradeTimelockNotElapsed);
+        }
+
+        let config = storage::get_multisig_config(&env).ok_or(OracleError::MultiSigNotInitialized)?;
+        let approvals = storage::get_upgrade_approvals(&env);
+        if approvals.len() < config.threshold {
+            return Err(OracleError::ThresholdNotMet);
+        }
 
         if timelock_secs < MIN_UPGRADE_TIMELOCK_SECS {
             return Err(OracleError::InvalidThreshold);
@@ -144,9 +178,80 @@ impl ProxyContract {
         storage::clear_pending_upgrade(&env);
 
         env.events()
-            .publish(("proxy_upgraded", admin), (current_version + 1, pending.new_wasm_hash.clone()));
+            .publish(("upgrade_executed", new_wasm_hash.clone()), current_version + 1);
 
         env.deployer().update_current_contract_wasm(pending.new_wasm_hash);
+        Ok(())
+    }
+
+    pub fn cancel_upgrade(env: Env, admin: Address) -> Result<(), OracleError> {
+        admin.require_auth();
+        storage::verify_admin(&env, &admin)?;
+        storage::clear_pending_upgrade(&env);
+        env.events()
+            .publish(("upgrade_cancelled", admin), env.ledger().timestamp());
+        Ok(())
+    }
+
+    pub fn get_pending_upgrade(env: Env) -> Option<BytesN<32>> {
+        storage::get_pending_upgrade(&env)
+    }
+
+    pub fn get_pending_upgrade_eta(env: Env) -> Option<u64> {
+        storage::get_pending_upgrade_eta(&env)
+    }
+
+    pub fn get_upgrade_approval_count(env: Env) -> u32 {
+        storage::get_upgrade_approvals(&env).len()
+    }
+
+    // -------------------------------------------------------------------------
+    // Issue #375 — canary rollout
+    //
+    // A canary implementation is registered ahead of a canonical upgrade so
+    // off-chain routers (the aggregator/API layer) can steer a configured
+    // traffic share to it before `promote_canary` makes it canonical. This
+    // contract only tracks the registration; traffic routing itself happens
+    // off-chain, since Soroban contracts cannot randomly split inbound calls.
+    // -------------------------------------------------------------------------
+
+    pub fn set_canary(
+        env: Env,
+        admin: Address,
+        canary: Address,
+        traffic_share_bps: u32,
+    ) -> Result<(), OracleError> {
+        admin.require_auth();
+        storage::verify_admin(&env, &admin)?;
+        if traffic_share_bps > 10_000 {
+            return Err(OracleError::InvalidThreshold);
+        }
+        storage::set_canary(&env, &canary, traffic_share_bps);
+        env.events().publish(("canary_set", canary), traffic_share_bps);
+        Ok(())
+    }
+
+    pub fn get_canary(env: Env) -> Option<(Address, u32)> {
+        storage::get_canary(&env)
+    }
+
+    pub fn promote_canary(env: Env, admin: Address) -> Result<(), OracleError> {
+        admin.require_auth();
+        storage::verify_admin(&env, &admin)?;
+
+        let (canary, _) = storage::get_canary(&env).ok_or(OracleError::UpgradeNotProposed)?;
+
+        if let Some(old) = storage::get_implementation(&env) {
+            storage::set_previous_implementation(&env, &old);
+        }
+        storage::set_implementation(&env, &canary);
+
+        let current_version = storage::get_contract_version(&env);
+        storage::set_contract_version(&env, current_version + 1);
+        storage::clear_canary(&env);
+
+        env.events()
+            .publish(("canary_promoted", canary), current_version + 1);
         Ok(())
     }
 
@@ -229,6 +334,9 @@ impl ProxyContract {
 
         let current_version = storage::get_contract_version(&env);
         storage::set_contract_version(&env, current_version + 1);
+
+        env.events()
+            .publish(("implementation_updated", admin), (new_implementation, current_version + 1));
 
         Ok(())
     }
@@ -359,7 +467,7 @@ impl ProxyContract {
         storage::set_price_history(&env, &asset, &history);
 
         env.events()
-            .publish(("price_submitted", asset, source), (price, decimals, timestamp));
+            .publish(("price_submitted", asset, source), (price, timestamp));
 
         Ok(data_point)
     }
@@ -451,8 +559,8 @@ impl ProxyContract {
 
 const REPUTATION_ACCURACY_THRESHOLD_BPS: u128 = 2000;
 const REPUTATION_DECAY_PERIOD_SECS: u64 = 604_800;
-// Issue #375 — minimum delay between an upgrade proposal and its execution.
-const MIN_UPGRADE_TIMELOCK_SECS: u64 = 172_800; // 48 hours
+// Issue #375 — minimum delay between a queued WASM upgrade and its execution.
+const UPGRADE_TIMELOCK_SECS: u64 = 172_800; // 48 hours
 
 fn vec_contains_address(vec: &Vec<Address>, target: &Address) -> bool {
     for i in 0..vec.len() {
@@ -463,22 +571,6 @@ fn vec_contains_address(vec: &Vec<Address>, target: &Address) -> bool {
         }
     }
     false
-}
-
-fn address_bucket(env: &Env, addr: &Address) -> u32 {
-    let s = addr.to_string();
-    let len = (s.len() as usize).min(64);
-    let mut buf = [0u8; 64];
-    s.copy_into_slice(&mut buf[..len]);
-    let digest = env.crypto().sha256(&Bytes::from_slice(env, &buf[..len]));
-    let digest_bytes: Bytes = digest.into();
-    let mut val: u32 = 0;
-    for i in 0..4u32 {
-        if let Some(b) = digest_bytes.get(i) {
-            val = (val << 8) | (b as u32);
-        }
-    }
-    val % 10_000
 }
 
 fn deviation_exceeds(new_price: i128, prev_price: i128, threshold_bps: u32) -> bool {

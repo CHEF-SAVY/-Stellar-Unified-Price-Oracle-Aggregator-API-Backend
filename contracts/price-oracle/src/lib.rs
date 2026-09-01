@@ -16,12 +16,11 @@ mod fuzz;
 #[cfg(test)]
 mod governance_test;
 #[cfg(test)]
+mod proxy_test;
+#[cfg(test)]
 mod gas_benchmarks;
 #[cfg(test)]
-mod proxy_governance_test;
-// merkle_test.rs is not wired in: it exercises PriceOracleContract methods
-// (get_batch_nonce, verify_batch_proof) that don't exist as public entry
-// points yet. Pre-existing gap, tracked separately from this change.
+mod upgrade_migration_test;
 
 pub use contract::PriceOracleContract;
 pub use governance::GovernanceContract;
