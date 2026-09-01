@@ -155,6 +155,11 @@ impl PriceOracleContract {
             return Err(OracleError::InvalidMerkleProof);
         }
 
+        // Issue #385 — each (batch, leaf) pair can be applied exactly once; a
+        // repeated apply of an already-applied leaf fails with
+        // BatchEntryAlreadyApplied instead of writing a duplicate history entry.
+        storage::mark_batch_leaf_applied(&env, batch_nonce, proof.leaf_index)?;
+
         let data_point = PriceDataPoint {
             asset: entry.asset.clone(),
             price: entry.price,
@@ -172,6 +177,23 @@ impl PriceOracleContract {
         );
 
         Ok(data_point)
+    }
+
+    pub fn get_batch_nonce(env: Env) -> u64 {
+        storage::get_batch_nonce(&env)
+    }
+
+    /// Read-only inclusion check used by off-chain tooling and tests.
+    pub fn verify_batch_proof(
+        env: Env,
+        batch_nonce: u64,
+        entry: BatchPriceEntry,
+        proof: MerkleProof,
+    ) -> bool {
+        let Some(root) = storage::get_batch_root(&env, batch_nonce) else {
+            return false;
+        };
+        merkle::verify_proof(&env, &entry, proof.leaf_index, &proof.siblings, &root)
     }
 
     // -------------------------------------------------------------------------
@@ -695,7 +717,6 @@ fn calculate_usd_price(env: &Env, asset: &String, price: i128, decimals: u32) ->
     if asset == &xlm {
         return Some(price);
     }
-
     let usdc = String::from_str(env, "USDC");
     if let Some(_usdc_anchor) = storage::get_latest_price(env, &usdc) {
         if asset == &usdc {

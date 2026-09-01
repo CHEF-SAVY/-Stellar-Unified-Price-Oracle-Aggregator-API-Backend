@@ -1,4 +1,4 @@
-#![no_std]
+#![cfg_attr(not(test), no_std)]
 
 pub mod contract;
 mod errors;
@@ -15,6 +15,8 @@ mod test;
 mod fuzz;
 #[cfg(test)]
 mod governance_test;
+#[cfg(test)]
+mod merkle_test;
 #[cfg(test)]
 mod proxy_test;
 #[cfg(test)]

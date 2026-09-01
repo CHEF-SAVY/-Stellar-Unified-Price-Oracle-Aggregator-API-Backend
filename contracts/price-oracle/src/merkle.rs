@@ -91,6 +91,10 @@ pub fn verify_proof(
     siblings: &soroban_sdk::Vec<Bytes>,
     root: &Bytes,
 ) -> bool {
+    if siblings.len() > MAX_PROOF_SIBLINGS {
+        return false;
+    }
+
     let mut current = hash_leaf(env, entry);
     let mut index = leaf_index;
 
