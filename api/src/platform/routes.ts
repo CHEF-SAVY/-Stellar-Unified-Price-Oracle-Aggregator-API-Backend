@@ -9,6 +9,7 @@ import {
   remediate,
 } from './self-healing';
 import {
+  anchorLineageRecord,
   explainLineage,
   getLineage,
   listLineage,
@@ -105,6 +106,18 @@ router.get('/lineage/search', (req: Request, res: Response) => {
 
 router.get('/lineage/verify/:provenanceId', (req: Request, res: Response) => {
   res.json(verifyLineage(req.params.provenanceId));
+});
+
+router.post('/lineage/:provenanceId/anchor', (req: Request, res: Response) => {
+  const { ledger, txHash, network } = req.body || {};
+  if (!ledger || !txHash) {
+    return res.status(400).json({ error: 'ledger and txHash are required' });
+  }
+
+  const record = anchorLineageRecord(req.params.provenanceId, { ledger, txHash, network });
+  if (!record) return res.status(404).json({ error: 'lineage record not found' });
+
+  res.status(202).json({ provenanceId: req.params.provenanceId, stellar_anchor: record.stellar_anchor, verification_url: record.verification_url });
 });
 
 router.get('/lineage/:provenanceId/explanation', (req: Request, res: Response) => {
